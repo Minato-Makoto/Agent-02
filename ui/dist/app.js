@@ -148,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 appendLog(msg.source, msg.message, msg.level);
                 break;
             case 'chat:stream':
-                handleChatStream(msg.text, msg.done);
+                handleChatStream(msg.data?.token, msg.data?.done);
                 break;
             case 'chat:error':
                 appendChatMessage('System', `Error: ${msg.error}`, 'error');
@@ -227,7 +227,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             elements.historyLog.innerHTML = '';
             logs.reverse().forEach(log => {
-                const date = new Date(log.timestamp).toLocaleString();
+                const tsRaw = log.timestamp || log.created_at || '';
+                const tsIso = tsRaw.replace(' ', 'T') + 'Z';
+                const date = new Date(tsIso).toLocaleString();
                 const div = document.createElement('div');
                 div.className = `log-entry ${log.level}`;
                 div.innerHTML = `
@@ -284,7 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: 'chat',
                 userId: currentSessionId,
                 sessionId: currentSessionId,
-                message: msg
+                text: msg
             }));
 
         } catch (e) {
@@ -341,20 +343,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (chunk) mdRawText += chunk;
 
+        // Convert <think> tags so browser doesn't hide them
+        let renderText = mdRawText
+            .replace(/<think>/g, '<div class="think-block" style="border-left: 3px solid #00f0ff; padding-left: 10px; margin: 10px 0; color: #aaa; font-style: italic;"><b>🤔 Reasoning:</b><br/>')
+            .replace(/<\/think>/g, '</div><br/>');
+
         if (isDone) {
             if (typeof marked !== 'undefined') {
-                activeStreamMsgContainer.innerHTML = marked.parse(mdRawText);
+                activeStreamMsgContainer.innerHTML = marked.parse(renderText);
             } else {
-                activeStreamMsgContainer.innerText = mdRawText;
+                activeStreamMsgContainer.innerText = renderText;
             }
             activeStreamMsgContainer = null;
             uiSetStreaming(false);
         } else {
             // Live render with cursor
             if (typeof marked !== 'undefined') {
-                activeStreamMsgContainer.innerHTML = marked.parse(mdRawText) + '<div class="streaming-cursor"></div>';
+                activeStreamMsgContainer.innerHTML = marked.parse(renderText) + '<div class="streaming-cursor"></div>';
             } else {
-                activeStreamMsgContainer.innerText = mdRawText + '...';
+                activeStreamMsgContainer.innerText = renderText + '...';
             }
         }
         scrollToBottom(elements.chatMessages);
@@ -517,10 +524,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             elements.cfgShellEnabled.checked = cfg.skills?.shell === true;
 
-            // Mask keys
-            elements.cfgApikey.value = cfg.llm?.apiKey ? '********' : '';
-            elements.cfgTelegram.value = cfg.connectors?.telegram?.token ? '********' : '';
-            elements.cfgDiscord.value = cfg.connectors?.discord?.token ? '********' : '';
+            // Do not mask local paths or keys for transparent auditing
+            elements.cfgApikey.value = cfg.llm?.apiKey || cfg.llm?.ggufPath || '';
+            elements.cfgTelegram.value = cfg.connectors?.telegram?.token || '';
+            elements.cfgDiscord.value = cfg.connectors?.discord?.token || '';
         } catch (err) {
             console.error('Failed to load settings', err);
         }
@@ -544,7 +551,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (elements.cfgBaseurl.value) partialCfg.llm.baseUrl = elements.cfgBaseurl.value;
         if (elements.cfgApikey.value && elements.cfgApikey.value !== '********') {
-            partialCfg.llm.apiKey = elements.cfgApikey.value;
+            if (elements.cfgProvider.value === 'llamacpp') {
+                partialCfg.llm.ggufPath = elements.cfgApikey.value;
+            } else {
+                partialCfg.llm.apiKey = elements.cfgApikey.value;
+            }
         }
 
         // Also connectors if updated

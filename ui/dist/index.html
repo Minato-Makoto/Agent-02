@@ -1,20 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Agent-02 | Secure AI Gateway</title>
     <!-- Modern Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;600;800&display=swap"
+        rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="styles.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 </head>
+
 <body>
     <!-- Background Elements for Premium Feel -->
     <div class="bg-glow bg-glow-1"></div>
     <div class="bg-glow bg-glow-2"></div>
-    
+
     <div class="app-container">
         <!-- Sidebar Navigation -->
         <nav class="sidebar glass-panel">
@@ -27,7 +32,7 @@
                     <span class="badge badge-secure">SECURE</span>
                 </div>
             </div>
-            
+
             <div class="nav-menu">
                 <button class="nav-item active" data-page="dashboard">
                     <span class="nav-icon">📊</span> Dashboard
@@ -39,7 +44,8 @@
                     <span class="nav-icon">🧠</span> Sessions
                 </button>
                 <button class="nav-item" data-page="consents">
-                    <span class="nav-icon">🛡️</span> Permissions <span id="consent-badge" class="badge-count hidden">0</span>
+                    <span class="nav-icon">🛡️</span> Permissions <span id="consent-badge"
+                        class="badge-count hidden">0</span>
                 </button>
                 <button class="nav-item" data-page="logs">
                     <span class="nav-icon">📋</span> System Logs
@@ -48,7 +54,7 @@
                     <span class="nav-icon">⚙️</span> Settings
                 </button>
             </div>
-            
+
             <div class="sidebar-footer">
                 <div id="ws-status" class="status-indicator status-offline">
                     <div class="pulse-dot"></div>
@@ -59,7 +65,7 @@
 
         <!-- Main Content Area -->
         <main class="main-content">
-            
+
             <!-- Dashboard View -->
             <section id="view-dashboard" class="view-section active">
                 <header class="view-header">
@@ -92,7 +98,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <h3 class="section-title mt-8">Live Terminal Stream</h3>
                 <div class="terminal-container glass-panel">
                     <div id="live-log" class="terminal-output">
@@ -112,7 +118,7 @@
                         <span class="icon">✨</span> New Session
                     </button>
                 </header>
-                
+
                 <div class="chat-container glass-panel">
                     <div id="chat-messages" class="chat-messages">
                         <div class="message system-message">
@@ -122,14 +128,20 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="chat-input-area">
                         <textarea id="chat-input" placeholder="Type a message or command..." rows="1"></textarea>
                         <button id="btn-send-chat" class="btn btn-primary btn-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" />
+                            </svg>
                         </button>
                         <button id="btn-stop-chat" class="btn btn-danger btn-icon hidden">
-                           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12"/></svg>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <rect x="6" y="6" width="12" height="12" />
+                            </svg>
                         </button>
                     </div>
                 </div>
@@ -153,7 +165,9 @@
                             </tr>
                         </thead>
                         <tbody id="sessions-list">
-                            <tr><td colspan="5" class="text-center p-4">Loading sessions...</td></tr>
+                            <tr>
+                                <td colspan="5" class="text-center p-4">Loading sessions...</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -193,7 +207,7 @@
                     <p class="subtitle">System parameters and AI providers</p>
                 </header>
                 <div class="settings-grid">
-                    
+
                     <div class="settings-card glass-panel">
                         <h3>AI Engine Setting</h3>
                         <div class="form-group">
@@ -211,11 +225,13 @@
                         </div>
                         <div class="form-group">
                             <label>Model Name</label>
-                            <input type="text" id="cfg-model" class="form-control" placeholder="e.g. gpt-4o, claude-3-5-sonnet-20240620">
+                            <input type="text" id="cfg-model" class="form-control"
+                                placeholder="e.g. gpt-4o, claude-3-5-sonnet-20240620">
                         </div>
                         <div class="form-group">
                             <label>API Key / Path</label>
-                            <input type="password" id="cfg-apikey" class="form-control" placeholder="Enter Key or /path/to/model.gguf">
+                            <input type="text" id="cfg-apikey" class="form-control"
+                                placeholder="Enter Key or /path/to/model.gguf">
                         </div>
                         <div class="form-group">
                             <label>Base URL (Optional)</label>
@@ -227,22 +243,25 @@
                         <h3>Connectors & Security</h3>
                         <div class="form-group">
                             <label>Telegram Bot Token</label>
-                            <input type="password" id="cfg-telegram" class="form-control" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
+                            <input type="password" id="cfg-telegram" class="form-control"
+                                placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
                         </div>
                         <div class="form-group">
                             <label>Discord Bot Token</label>
-                            <input type="password" id="cfg-discord" class="form-control" placeholder="MTEy... (Bot Token)">
+                            <input type="password" id="cfg-discord" class="form-control"
+                                placeholder="MTEy... (Bot Token)">
                         </div>
                         <div class="form-group mt-4">
                             <label class="flex items-center gap-2">
                                 <input type="checkbox" id="cfg-shell-enabled">
                                 Enable Shell Command Skill
                             </label>
-                            <p class="text-xs text-muted mt-1">Requires explicit consent in UI before any command runs.</p>
+                            <p class="text-xs text-muted mt-1">Requires explicit consent in UI before any command runs.
+                            </p>
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="mt-6 flex justify-end">
                     <button id="btn-save-settings" class="btn btn-primary glow-effect">
                         Save & Apply Changes
@@ -262,7 +281,8 @@
         <div class="modal-body">
             <p>The AI Agent requests to execute a potentially sensitive action:</p>
             <div class="execution-card">
-                <div class="exec-title">Skill: <span id="modal-skill-name" class="text-highlight">shell_exec</span></div>
+                <div class="exec-title">Skill: <span id="modal-skill-name" class="text-highlight">shell_exec</span>
+                </div>
                 <pre id="modal-skill-args" class="exec-code">{"command": "ls -la"}</pre>
             </div>
             <p class="text-xs text-muted mt-4">Please review the parameters carefully before approving.</p>
@@ -275,4 +295,5 @@
 
     <script src="app.js"></script>
 </body>
+
 </html>
