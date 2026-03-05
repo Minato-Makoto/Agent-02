@@ -111,11 +111,11 @@ jobs:
           sha256sum agent02-* > agent02-checksums.txt
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
-          target_commitish: ${{ github.sha }}
-          generate_release_notes: true
-          files: |
-            release-assets/agent02-*
-            release-assets/agent02-checksums.txt
+          tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+          generateReleaseNotes: true
+          allowUpdates: true
+          replacesArtifacts: true
+          artifactErrorsFailBuild: true
+          artifacts: release-assets/agent02-*,release-assets/agent02-checksums.txt
