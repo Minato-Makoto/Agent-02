@@ -1,57 +1,76 @@
 #!/usr/bin/env bash
-# ═══════════════════════════════════════════════════
-# Agent-02 — Quick Install Script
-# ═══════════════════════════════════════════════════
-set -e
+set -euo pipefail
 
-echo ""
-echo "  ⚡ Agent-02 Installer"
-echo "  ════════════════════════════════════"
-echo ""
+REPO="yourname/agent-02"
+INSTALL_DIR="${AGENT02_DIR:-$HOME/.agent02}"
+BIN_DIR="${AGENT02_BIN_DIR:-$HOME/.local/bin}"
+TMP_DIR="$(mktemp -d)"
 
-# Check Node.js
-if ! command -v node &> /dev/null; then
-  echo "  [!] Node.js not found. Installing via nvm..."
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
-  export NVM_DIR="$HOME/.nvm"
-  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-  nvm install 22
-fi
+cleanup() {
+  rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT
 
-NODE_VERSION=$(node -v)
-echo "  [OK] Node.js $NODE_VERSION"
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "Missing required command: $1" >&2
+    exit 1
+  }
+}
 
-# Clone or update
-INSTALL_DIR="${AGENT02_DIR:-$HOME/agent-02}"
-if [ -d "$INSTALL_DIR" ]; then
-  echo "  [*] Updating existing installation..."
-  cd "$INSTALL_DIR"
-  git pull --ff-only 2>/dev/null || true
+need_cmd curl
+need_cmd tar
+
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+ARCH="$(uname -m)"
+case "$ARCH" in
+  x86_64|amd64) ARCH="amd64" ;;
+  aarch64|arm64) ARCH="arm64" ;;
+  *)
+    echo "Unsupported architecture: $ARCH" >&2
+    exit 1
+    ;;
+esac
+
+case "$OS" in
+  linux*) OS="linux" ;;
+  darwin*) OS="darwin" ;;
+  *)
+    echo "Unsupported OS for install.sh: $OS" >&2
+    exit 1
+    ;;
+esac
+
+ASSET="agent02-${OS}-${ARCH}.tar.gz"
+URL="https://github.com/${REPO}/releases/latest/download/${ASSET}"
+
+mkdir -p "$INSTALL_DIR" "$BIN_DIR"
+
+if curl -fsSL "$URL" -o "$TMP_DIR/$ASSET"; then
+  tar -xzf "$TMP_DIR/$ASSET" -C "$INSTALL_DIR"
+  chmod +x "$INSTALL_DIR/agent02"
 else
-  echo "  [*] Cloning Agent-02..."
-  git clone https://github.com/yourname/agent-02.git "$INSTALL_DIR"
-  cd "$INSTALL_DIR"
+  echo "[agent02] Prebuilt binary not found. Falling back to source build."
+  need_cmd git
+  need_cmd go
+
+  if [ -d "$INSTALL_DIR/.git" ]; then
+    git -C "$INSTALL_DIR" fetch --tags --force
+    git -C "$INSTALL_DIR" pull --ff-only
+  else
+    rm -rf "$INSTALL_DIR"
+    git clone "https://github.com/${REPO}.git" "$INSTALL_DIR"
+  fi
+
+  (cd "$INSTALL_DIR" && go build -trimpath -ldflags="-s -w" -o "$INSTALL_DIR/agent02" ./cmd/agent02)
 fi
 
-# Install deps
-echo "  [*] Installing dependencies..."
-npm install --no-fund --no-audit
+ln -sf "$INSTALL_DIR/agent02" "$BIN_DIR/agent02"
 
-# Build
-echo "  [*] Building..."
-npm run build
-
-# Create symlink
-if [ -w /usr/local/bin ]; then
-  ln -sf "$INSTALL_DIR/dist/index.js" /usr/local/bin/agent02
-  echo "  [OK] Installed 'agent02' command globally"
-else
-  echo "  [i] Add to PATH: export PATH=\"$INSTALL_DIR/dist:\$PATH\""
+if ! echo ":$PATH:" | grep -q ":$BIN_DIR:"; then
+  echo "Add this to your shell profile:"
+  echo "  export PATH=\"$BIN_DIR:\$PATH\""
 fi
 
-echo ""
-echo "  ════════════════════════════════════"
-echo "  [OK] Agent-02 installed!"
-echo "  [*] Run: npm start"
-echo "  [*] Open: http://localhost:8080"
-echo ""
+echo "Installed: $BIN_DIR/agent02"
+echo "Run: agent02 start"

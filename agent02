@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN_PATH="$ROOT_DIR/bin/agent02"
+
+if [[ -x "$BIN_PATH" ]]; then
+  exec "$BIN_PATH" "$@"
+fi
+
+if command -v go >/dev/null 2>&1; then
+  echo "[agent02] local binary not found, building..."
+  (cd "$ROOT_DIR" && go build -o "$BIN_PATH" ./cmd/agent02)
+  exec "$BIN_PATH" "$@"
+fi
+
+echo "agent02 binary not found. Install with install.sh or provide Go toolchain." >&2
+exit 1

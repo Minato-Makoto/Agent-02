@@ -1,118 +1,137 @@
-# ⚡ Agent-02 — Self-Hosted AI Gateway
+# ? Agent-02 � Self-Hosted AI Gateway (Secure Edition 2026)
 
-**One click. Your AI. Your rules. 100% private & secure.**
+**One command. Your AI. Your rules. 100% private & secure.**
 
-Welcome to **Agent-02**! A secure, self-hosted gateway connecting state-of-the-art AI models (cloud or local) to your messaging platforms like WhatsApp, Telegram, and Discord—all running completely on your own machine.
-
-[Read this in Vietnamese / Đọc bằng tiếng Việt](README_vi.md)
+Agent-02 connects official messaging APIs to modern AI models (cloud or local `.gguf`) through a gateway running on your own machine.
 
 ---
 
-## 🌟 Features
+## ?? Quick Start (T?t c? OS)
 
-- **100% Privacy:** Your chat history, API keys, and settings live locally in the `data/` folder.
-- **Human-in-the-Loop Consent:** The AI cannot execute dangerous operations (like Shell commands) without your explicit approval via the Control UI.
-- **Easy Deployment:** Includes a single Windows `.bat` script for non-devs, and a `docker-compose.yml` for server hosting.
-- **Dynamic Personality:** Adjust the AI's behavior via a simple `system.md` file without touching code.
-- **Broad Model Support (2026):** Connects to OpenAI, Anthropic, Gemini, DeepSeek, or run 100% offline using Ollama and Llama.cpp.
-
----
-
-## 📋 Prerequisites
-
-Depending on how you want to run Agent-02, you will need:
-- **For Windows (Easy Mode):** [Node.js](https://nodejs.org/) (Version 22+) installed on your computer.
-- **For Servers (Docker Mode):** Docker and Docker Compose installed.
-
----
-
-## 🚀 Installation
-
-### Windows Easy Installation
-1. Download or clone this repository to your machine.
-2. Open the `agent-02` folder.
-3. Double-click the `agent02.bat` file.
-   - *On the first run, it will automatically install dependencies and start the server.*
-
-### Linux / Server Installation (Docker)
 ```bash
-git clone https://github.com/yourname/agent-02.git
-cd agent-02
-docker-compose up -d
+curl -fsSL https://raw.githubusercontent.com/yourname/agent-02/main/install.sh | bash
+agent02 start
 ```
+
+Browser opens `http://localhost:8080` with the Control UI.
 
 ---
 
-## 💻 Usage
+## ?? K?t n?i Platforms (CH? OFFICIAL)
 
-Once the server is running, open your web browser and go to:
-👉 **http://localhost:8080**
+| Platform | C�ch k?t n?i ch�nh th?c |
+|---|---|
+| Telegram | Bot API + BotFather token |
+| WhatsApp | WhatsApp Business API / Cloud API |
+| Discord | Discord Bot + Interactions API |
+| Slack | Slack App + OAuth |
+| Microsoft Teams | Microsoft Graph + OAuth |
+| Matrix / Google Chat | Official SDK |
 
-This will open the **Control UI** where you can manage your AI.
-
-### 1. Connecting Platforms
-You can chat directly in the UI, or link it to messaging apps via the "Connectors" tab:
-- **Telegram:** Talk to [@BotFather](https://t.me/botfather) to create a bot and get a Token.
-- **Discord:** Create a bot at the [Discord Developer Portal](https://discord.com/developers).
-- **WhatsApp:** Set up an official app on [Meta for Developers](https://developers.facebook.com) for the WhatsApp Cloud API.
-
-### 2. Choosing an AI Model
-In the **Settings** tab, choose your AI brain:
-- **Cloud AI:** Select provider (OpenAI, Anthropic, etc.) and paste your API Key.
-- **Offline AI:** Connect your local Ollama or point to a `.gguf` file using Llama.cpp for complete offline privacy.
-
-### 3. Setting AI Personality (System Prompt)
-Want the AI to act differently?
-1. Open `data/instructions/system.md` in any text editor.
-2. Write your custom behavior instructions.
-3. Save the file. The AI adopts the new personality immediately on the next chat session.
-
-### 4. Sandboxed Skills
-Agent-02 includes tools the AI can use:
-- **Web Search:** Search the web privately via DuckDuckGo.
-- **File System:** Read/write files, rigidly restricted to the allowed workspace.
-- **Shell Commands:** Try to run computer commands—**always pauses and asks you to explicitly "Approve" or "Deny"**.
+Current built-in connectors in this repo: Telegram, WhatsApp Cloud API, Discord.
 
 ---
 
-## 🏗️ Project Structure
+## ?? Supported AI Models
 
-The codebase is structured in modern TypeScript running on Node.js:
+- Cloud: OpenAI, Anthropic Claude 4, Google Gemini, Grok 4, DeepSeek, Qwen (OpenAI-compatible routing)
+- Local: `llama.cpp` (OpenAI-compatible server), Ollama, vLLM (GGUF offline-ready)
 
-```
+---
+
+## ??? Built-in Skills (Sandbox + Explicit Consent)
+
+- Notes & Tasks (`notes` skill)
+- Consent queue for high-impact actions
+- API-first skill runtime (deny-by-default for actions requiring approval)
+
+All sensitive actions require explicit user approval in Control UI.
+
+---
+
+## ??? Project Structure (New)
+
+```text
 agent-02/
-├── src/                    # Backend Source Code (TypeScript)
-│   ├── index.ts            # Entry CLI
-│   ├── api/                # Fastify REST & WebSocket servers
-│   ├── gateway/            # Event bus, router, session handling
-│   ├── adapters/           # Connectors (Telegram, Discord, WhatsApp)
-│   ├── llm/                # API wrappers for AI Providers
-│   └── skills/             # Sandboxed AI Tools
-├── ui/                     # Control UI
-│   └── dist/               # Compiled HTML/JS/CSS Interface
-├── data/                   # Your Local Data (Created on first run)
-│   ├── config.json         # AES-256 Encrypted API Keys
-│   ├── agent02.sqlite      # Chat history database
-│   └── instructions/       # system.md rules
-├── docker-compose.yml      # Deployment config
-├── install.sh              # Bash installer
-├── agent02.bat             # Windows runner
-├── package.json            # Node dependencies
-└── tsconfig.json           # TypeScript config
++-- install.sh
++-- agent02                    # launcher / single-binary entry
++-- cmd/
+�   +-- agent02/
+�       +-- main.go            # CLI: start, connect, skills enable
++-- src/
+�   +-- gateway/               # Core router + runtime bootstrap
+�   +-- adapters/              # Official connectors only
+�   +-- llm/                   # Cloud + local model routing
+�   +-- skills/                # Sandboxed tools + consent workflow
+�   +-- api/                   # Secure REST + webhook endpoints
+�   +-- security/              # Encryption + signature verification
+�   +-- store/                 # SQLite + config persistence
+�   +-- config/                # Config schema/defaults
++-- ui/                        # Tauri 2.0 + React control UI
++-- data/                      # SQLite + encrypted secrets (runtime)
++-- tests/
+�   +-- integration/
++-- Dockerfile
++-- docker-compose.yml
++-- go.mod
++-- README.md
 ```
 
 ---
 
-## 🛡️ Data Storage & Privacy
+## ?? Security Defaults
 
-All sensitive user data is stored safely within the `data/` directory. 
-- API Keys inside `config.json` are encrypted at rest using AES-256-GCM.
-- **To Backup/Migrate:** Simply copy your `data/` folder to your new machine or server.
+- Official APIs only (no WhatsApp Web automation, no unofficial hijack connectors)
+- Encrypted secrets at rest using AES-GCM (`data/config.json` encrypted fields)
+- Webhook signature verification:
+  - Telegram secret token header
+  - WhatsApp `X-Hub-Signature-256` HMAC
+  - Discord `X-Signature-Ed25519`
+- Admin API token required by default (`X-Agent02-Token`)
+- Strict request limits, secure headers, and least-privilege skill model
 
 ---
 
-## 🤝 Contributing
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+## ?? CLI Usage
 
-## 📝 License
-[MIT](https://choosealicense.com/licenses/mit/)
+```bash
+# Start gateway
+agent02 start --data-dir ./data
+
+# Connect official platforms
+agent02 connect telegram --token <TOKEN> --webhook-secret <SECRET> --enable
+agent02 connect whatsapp --phone-number-id <ID> --access-token <TOKEN> --app-secret <SECRET> --verify-token <VERIFY> --enable
+agent02 connect discord --token <TOKEN> --application-id <APP_ID> --public-key <PUBKEY> --enable
+
+# Enable/disable skills
+agent02 skills enable --skill notes --on true
+```
+
+---
+
+## ?? Docker
+
+```bash
+docker compose up -d
+# Optional local GGUF inference server
+docker compose --profile local-gguf up -d llama-cpp
+```
+
+---
+
+## ?? Integration Safety Scenario
+
+See:
+- `tests/integration/telegram_local_gguf_notes_consent.md`
+
+Scenario validates:
+1. Telegram webhook via official API
+2. Local GGUF inference via `llama.cpp`
+3. Notes skill requiring explicit consent before write
+
+---
+
+## Notes
+
+- `signal-cli` is intentionally not integrated as a first-party official connector path in this secure profile.
+- `whatsapp-web.js` is intentionally excluded because the secure edition enforces official WhatsApp Business/Cloud API only.

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Agent-02 Control",
+  "version": "2.0.0",
+  "identifier": "com.agent02.control",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist",
+    "devUrl": "http://127.0.0.1:1420"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Agent-02 Control",
+        "width": 1280,
+        "height": 860,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8080 http://localhost:8080"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": []
+  }
+}

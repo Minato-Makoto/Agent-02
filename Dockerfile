@@ -1,17 +1,17 @@
-FROM node:22-slim AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --no-fund --no-audit
-COPY tsconfig.json ./
-COPY src/ ./src/
-RUN npx tsc
+FROM golang:1.25-alpine AS build
+WORKDIR /src
 
-FROM node:22-slim
+COPY go.mod ./
+RUN go mod download
+
+COPY cmd ./cmd
+COPY src ./src
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/agent02 ./cmd/agent02
+
+FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY package.json ./
-COPY ui/ ./ui/
-COPY data/instructions/ ./data/instructions/
+COPY --from=build /out/agent02 /usr/local/bin/agent02
 EXPOSE 8080
-CMD ["node", "dist/index.js"]
+ENTRYPOINT ["/usr/local/bin/agent02"]
+CMD ["start", "--data-dir", "/app/data"]

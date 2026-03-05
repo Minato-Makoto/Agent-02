@@ -1,0 +1,121 @@
+name: Release Agent02 Binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (example: v2.0.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  GO_VERSION: "1.25.x"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            ext: ".exe"
+            archive: "zip"
+          - goos: windows
+            goarch: arm64
+            ext: ".exe"
+            archive: "zip"
+          - goos: linux
+            goarch: amd64
+            ext: ""
+            archive: "tar.gz"
+          - goos: linux
+            goarch: arm64
+            ext: ""
+            archive: "tar.gz"
+          - goos: darwin
+            goarch: amd64
+            ext: ""
+            archive: "tar.gz"
+          - goos: darwin
+            goarch: arm64
+            ext: ""
+            archive: "tar.gz"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_dir="dist/${{ matrix.goos }}-${{ matrix.goarch }}"
+          mkdir -p "$out_dir"
+          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build -trimpath -ldflags="-s -w" \
+            -o "${out_dir}/agent02${{ matrix.ext }}" ./cmd/agent02
+
+      - name: Package binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          out_dir="dist/${{ matrix.goos }}-${{ matrix.goarch }}"
+          asset_base="agent02-${{ matrix.goos }}-${{ matrix.goarch }}"
+
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            (cd "$out_dir" && zip -9 "${asset_base}.zip" "agent02${{ matrix.ext }}")
+            mv "${out_dir}/${asset_base}.zip" "dist/${asset_base}.zip"
+          else
+            (cd "$out_dir" && tar -czf "${asset_base}.tar.gz" "agent02${{ matrix.ext }}")
+            mv "${out_dir}/${asset_base}.tar.gz" "dist/${asset_base}.tar.gz"
+          fi
+
+      - name: Upload packaged asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/agent02-${{ matrix.goos }}-${{ matrix.goarch }}.*
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download all packaged assets
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: package-*
+          merge-multiple: true
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          sha256sum agent02-* > agent02-checksums.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: |
+            release-assets/agent02-*
+            release-assets/agent02-checksums.txt

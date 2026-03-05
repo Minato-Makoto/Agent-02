@@ -1,32 +1,28 @@
-version: '3.8'
+version: "3.9"
 
 services:
   agent02:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agent02
+    command: ["start", "--data-dir", "/app/data"]
     ports:
       - "8080:8080"
     volumes:
       - ./data:/app/data
     environment:
-      - NODE_ENV=production
+      - AGENT02_MASTER_KEY=${AGENT02_MASTER_KEY:-}
     restart: unless-stopped
 
-  # Optional: Ollama for local models
-  ollama:
-    image: ollama/ollama:latest
+  llama-cpp:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: agent02-llamacpp
+    command: ["-m", "/models/model.gguf", "--host", "0.0.0.0", "--port", "8081"]
     ports:
-      - "11434:11434"
+      - "8081:8081"
     volumes:
-      - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+      - ./models:/models:ro
+    restart: unless-stopped
     profiles:
-      - local-llm
-
-volumes:
-  ollama_data:
+      - local-gguf
