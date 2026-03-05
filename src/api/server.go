@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -227,10 +228,10 @@ func (s *Server) registerWebhookRoutes(app *fiber.App) {
 		app.Post(s.runtime.Config.Connectors.Telegram.WebhookPath, func(c *fiber.Ctx) error {
 			msg, err := s.runtime.Telegram.ParseWebhook(c)
 			if err != nil {
-				if err == fiber.ErrNoContent {
+				if hasFiberStatus(err, fiber.StatusNoContent) {
 					return c.SendStatus(fiber.StatusOK)
 				}
-				if err == fiber.ErrUnauthorized {
+				if hasFiberStatus(err, fiber.StatusUnauthorized) {
 					return c.SendStatus(fiber.StatusUnauthorized)
 				}
 				return c.Status(fiber.StatusBadRequest).SendString(err.Error())
@@ -248,10 +249,10 @@ func (s *Server) registerWebhookRoutes(app *fiber.App) {
 		app.Post(s.runtime.Config.Connectors.WhatsApp.WebhookPath, func(c *fiber.Ctx) error {
 			msg, err := s.runtime.WhatsApp.ParseWebhook(c)
 			if err != nil {
-				if err == fiber.ErrNoContent {
+				if hasFiberStatus(err, fiber.StatusNoContent) {
 					return c.SendStatus(fiber.StatusOK)
 				}
-				if err == fiber.ErrUnauthorized {
+				if hasFiberStatus(err, fiber.StatusUnauthorized) {
 					return c.SendStatus(fiber.StatusUnauthorized)
 				}
 				return c.Status(fiber.StatusBadRequest).SendString(err.Error())
@@ -268,10 +269,10 @@ func (s *Server) registerWebhookRoutes(app *fiber.App) {
 		app.Post(s.runtime.Config.Connectors.Discord.WebhookPath, func(c *fiber.Ctx) error {
 			msg, interactionType, err := s.runtime.Discord.ParseInteraction(c)
 			if err != nil {
-				if err == fiber.ErrNoContent {
+				if hasFiberStatus(err, fiber.StatusNoContent) {
 					return c.SendStatus(fiber.StatusOK)
 				}
-				if err == fiber.ErrUnauthorized {
+				if hasFiberStatus(err, fiber.StatusUnauthorized) {
 					return c.SendStatus(fiber.StatusUnauthorized)
 				}
 				return c.Status(fiber.StatusBadRequest).SendString(err.Error())
@@ -320,6 +321,14 @@ func (s *Server) securityHeaders(c *fiber.Ctx) error {
 	c.Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 	c.Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8080 http://localhost:8080")
 	return c.Next()
+}
+
+func hasFiberStatus(err error, code int) bool {
+	var ferr *fiber.Error
+	if errors.As(err, &ferr) {
+		return ferr.Code == code
+	}
+	return false
 }
 
 const fallbackHTML = `<!doctype html>

@@ -95,7 +95,7 @@ func (a *WhatsAppCloudAdapter) ParseWebhook(c *fiber.Ctx) (InboundMessage, error
 		}
 	}
 
-	return InboundMessage{}, fiber.ErrNoContent
+	return InboundMessage{}, fiber.NewError(fiber.StatusNoContent, "no content")
 }
 
 func (a *WhatsAppCloudAdapter) SendText(ctx context.Context, channelID string, text string) error {

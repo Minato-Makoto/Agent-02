@@ -90,7 +90,7 @@ func (a *DiscordAdapter) ParseInteraction(c *fiber.Ctx) (InboundMessage, int, er
 		return InboundMessage{}, 1, nil
 	}
 	if payload.Type != 2 {
-		return InboundMessage{}, payload.Type, fiber.ErrNoContent
+		return InboundMessage{}, payload.Type, fiber.NewError(fiber.StatusNoContent, "no content")
 	}
 
 	prompt := ""

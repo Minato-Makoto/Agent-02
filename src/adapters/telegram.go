@@ -114,7 +114,7 @@ func (a *TelegramAdapter) ParseWebhook(c *fiber.Ctx) (InboundMessage, error) {
 		return InboundMessage{}, err
 	}
 	if update.Message == nil || strings.TrimSpace(update.Message.Text) == "" {
-		return InboundMessage{}, fiber.ErrNoContent
+		return InboundMessage{}, fiber.NewError(fiber.StatusNoContent, "no content")
 	}
 
 	return InboundMessage{
