@@ -111,11 +111,16 @@ jobs:
           sha256sum agent02-* > agent02-checksums.txt
 
       - name: Publish GitHub Release
-        uses: ncipollo/release-action@v1
+        uses: softprops/action-gh-release@v2
         with:
-          tag: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
-          generateReleaseNotes: true
-          allowUpdates: true
-          replacesArtifacts: true
-          artifactErrorsFailBuild: true
-          artifacts: release-assets/agent02-*,release-assets/agent02-checksums.txt
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          overwrite_files: true
+          files: |
+            release-assets/agent02-windows-amd64.zip
+            release-assets/agent02-windows-arm64.zip
+            release-assets/agent02-linux-amd64.tar.gz
+            release-assets/agent02-linux-arm64.tar.gz
+            release-assets/agent02-darwin-amd64.tar.gz
+            release-assets/agent02-darwin-arm64.tar.gz
+            release-assets/agent02-checksums.txt
