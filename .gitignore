@@ -9,6 +9,7 @@ data/config.json
 data/.secret_key
 data/*.sqlite
 data/workspace/
+data/agent02.db
 
 # OS files
 .DS_Store
