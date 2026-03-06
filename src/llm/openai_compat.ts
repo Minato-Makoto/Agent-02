@@ -4,8 +4,16 @@
 // ═══════════════════════════════════════════════════
 
 import OpenAI from 'openai';
-import type { LLMProvider, LLMMessage, LLMResult, ToolDefinition } from './provider.js';
+import type { LLMProvider, LLMMessage, LLMResult, ToolDefinition, LLMRequestOptions } from './provider.js';
 import { log } from '../gateway/eventbus.js';
+
+function parseToolArgs(raw: string): Record<string, any> {
+    try {
+        return JSON.parse(raw || '{}');
+    } catch {
+        return {};
+    }
+}
 
 export class OpenAICompatProvider implements LLMProvider {
     readonly name: string;
@@ -19,7 +27,7 @@ export class OpenAICompatProvider implements LLMProvider {
         log('info', 'llm', `Initialized ${this.name} (${baseURL})`);
     }
 
-    async chat(messages: LLMMessage[], tools?: ToolDefinition[]): Promise<LLMResult> {
+    async chat(messages: LLMMessage[], tools?: ToolDefinition[], options?: LLMRequestOptions): Promise<LLMResult> {
         const params: any = {
             model: this.model,
             messages: messages.map(m => ({
@@ -37,7 +45,7 @@ export class OpenAICompatProvider implements LLMProvider {
             params.tool_choice = 'auto';
         }
 
-        const res = await this.client.chat.completions.create(params);
+        const res = await this.client.chat.completions.create(params, { signal: options?.signal });
         const choice = res.choices[0];
         const msg = choice.message;
 
@@ -47,7 +55,7 @@ export class OpenAICompatProvider implements LLMProvider {
             result.toolCalls = msg.tool_calls.map(tc => ({
                 id: tc.id,
                 name: tc.function.name,
-                args: JSON.parse(tc.function.arguments || '{}'),
+                args: parseToolArgs(tc.function.arguments || '{}'),
             }));
         }
 

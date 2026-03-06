@@ -1,35 +1,22 @@
-// Agent-02 Web Control UI Logic
-// Powered by Vanilla JS & WebSockets
-
 document.addEventListener('DOMContentLoaded', () => {
-    // ── DOM Elements ──
     const elements = {
         navItems: document.querySelectorAll('.nav-item'),
         viewSections: document.querySelectorAll('.view-section'),
-
-        // Status & Stats
         wsStatus: document.getElementById('ws-status'),
         statusText: document.querySelector('#ws-status .status-text'),
         sysUptime: document.getElementById('sys-uptime'),
         sysMemory: document.getElementById('sys-memory'),
         sysLlm: document.getElementById('sys-llm'),
-
-        // Logs
+        runtimeSummary: document.getElementById('runtime-summary'),
         liveLog: document.getElementById('live-log'),
         historyLog: document.getElementById('history-log'),
         btnRefreshLogs: document.getElementById('btn-refresh-logs'),
-
-        // Chat
         chatMessages: document.getElementById('chat-messages'),
         chatInput: document.getElementById('chat-input'),
         btnSendChat: document.getElementById('btn-send-chat'),
         btnStopChat: document.getElementById('btn-stop-chat'),
         btnNewChat: document.getElementById('btn-new-chat'),
-
-        // Sessions
         sessionsList: document.getElementById('sessions-list'),
-
-        // Consents
         consentsContainer: document.getElementById('consents-container'),
         consentBadge: document.getElementById('consent-badge'),
         modalBackdrop: document.getElementById('modal-backdrop'),
@@ -38,52 +25,134 @@ document.addEventListener('DOMContentLoaded', () => {
         modalSkillArgs: document.getElementById('modal-skill-args'),
         modalBtnApprove: document.getElementById('modal-btn-approve'),
         modalBtnDeny: document.getElementById('modal-btn-deny'),
-
-        // Settings
         cfgProvider: document.getElementById('cfg-provider'),
         cfgModel: document.getElementById('cfg-model'),
-        cfgApikey: document.getElementById('cfg-apikey'),
         cfgBaseurl: document.getElementById('cfg-baseurl'),
+        cfgLocalModel: document.getElementById('cfg-local-model'),
+        cfgApikey: document.getElementById('cfg-apikey'),
+        cfgSystemPrompt: document.getElementById('cfg-system-prompt'),
+        cfgTelegramEnabled: document.getElementById('cfg-telegram-enabled'),
         cfgTelegram: document.getElementById('cfg-telegram'),
+        cfgDiscordEnabled: document.getElementById('cfg-discord-enabled'),
         cfgDiscord: document.getElementById('cfg-discord'),
         cfgShellEnabled: document.getElementById('cfg-shell-enabled'),
-        btnSaveSettings: document.getElementById('btn-save-settings')
+        cfgWorkdir: document.getElementById('cfg-workdir'),
+        runtimeHint: document.getElementById('runtime-hint'),
+        btnSaveSettings: document.getElementById('btn-save-settings'),
     };
 
-    let ws = null;
-    let reconnectTimer = null;
-    let currentSessionId = localStorage.getItem('agent02_session') || crypto.randomUUID();
-    let isStreaming = false;
-    let activeConsentId = null;
+    const state = {
+        ws: null,
+        reconnectTimer: null,
+        statusTimer: null,
+        currentSessionId: localStorage.getItem('agent02_session') || crypto.randomUUID(),
+        activeStreamContainer: null,
+        streamBuffer: '',
+        reasoningBuffer: '',
+        isStreaming: false,
+        activeConsentId: null,
+        runtimeInfo: null,
+        loadedConfig: null,
+    };
 
-    // Save session ID so refresh doesn't lose context
-    localStorage.setItem('agent02_session', currentSessionId);
+    localStorage.setItem('agent02_session', state.currentSessionId);
 
-    // Set marked.js options for safe rendering
     if (typeof marked !== 'undefined') {
         marked.setOptions({
             breaks: true,
-            gfm: true
+            gfm: true,
+            headerIds: false,
+            mangle: false,
         });
     }
 
-    // ── Navigation (SPA logic) ──
+    function escapeHtml(text) {
+        return String(text ?? '').replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;',
+        }[char]));
+    }
+
+    function renderMarkdown(text) {
+        const source = String(text ?? '');
+        const thinkMatch = source.match(/<think>\s*([\s\S]*?)\s*<\/think>\s*([\s\S]*)/i);
+        if (thinkMatch) {
+            return renderAssistantContent(thinkMatch[2] || '', thinkMatch[1] || '');
+        }
+
+        return renderMarkdownBody(source);
+    }
+
+    function renderMarkdownBody(text) {
+        const safeInput = escapeHtml(text);
+        if (typeof marked !== 'undefined') {
+            return marked.parse(safeInput);
+        }
+
+        return safeInput.replace(/\n/g, '<br>');
+    }
+
+    function renderReasoningBlock(text) {
+        if (!text || !text.trim()) return '';
+        return `
+            <div class="think-block">
+                <div class="think-label">Thinking</div>
+                <div class="think-text">${escapeHtml(text).replace(/\n/g, '<br>')}</div>
+            </div>
+        `;
+    }
+
+    function renderAssistantContent(content, reasoning = '', includeCursor = false) {
+        const reasoningHtml = renderReasoningBlock(reasoning);
+        const contentHtml = renderMarkdownBody(content || '');
+        const cursorHtml = includeCursor ? '<div class="streaming-cursor"></div>' : '';
+        return `${reasoningHtml}${contentHtml}${cursorHtml}`;
+    }
+
+    function scrollToBottom(element) {
+        if (!element) return;
+        element.scrollTop = element.scrollHeight;
+    }
+
+    function formatDate(value) {
+        if (!value) return 'Unknown';
+        const normalized = String(value).replace(' ', 'T');
+        const date = new Date(normalized);
+        return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString();
+    }
+
+    function formatBytes(bytes) {
+        return `${Math.round(bytes / (1024 * 1024))} MB`;
+    }
+
+    function formatUptime(seconds) {
+        const total = Math.max(0, Math.floor(seconds));
+        const hours = Math.floor(total / 3600).toString().padStart(2, '0');
+        const minutes = Math.floor((total % 3600) / 60).toString().padStart(2, '0');
+        const secs = (total % 60).toString().padStart(2, '0');
+        return `${hours}:${minutes}:${secs}`;
+    }
+
+    function getFileNameFromPath(filePath) {
+        if (!filePath) return '';
+        return String(filePath).split(/[\\/]/).pop() || '';
+    }
+
     function switchView(pageId) {
-        // Update nav styling
-        elements.navItems.forEach(nav => {
-            if (nav.dataset.page === pageId) nav.classList.add('active');
-            else nav.classList.remove('active');
+        elements.navItems.forEach((nav) => {
+            nav.classList.toggle('active', nav.dataset.page === pageId);
         });
 
-        // Switch sections
-        elements.viewSections.forEach(section => {
-            if (section.id === `view-${pageId}`) section.classList.remove('hidden');
-            else section.classList.add('hidden');
+        elements.viewSections.forEach((section) => {
+            section.classList.toggle('hidden', section.id !== `view-${pageId}`);
         });
 
-        // Trigger data fetches based on view
         if (pageId === 'sessions') fetchSessions();
         if (pageId === 'logs') fetchHistoryLogs();
+        if (pageId === 'consents') fetchConsents();
         if (pageId === 'settings') loadSettings();
         if (pageId === 'chat') {
             elements.chatInput.focus();
@@ -91,511 +160,545 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    elements.navItems.forEach(nav => {
-        nav.addEventListener('click', (e) => {
-            // Find the closest button in case they clicked an inner span
-            const btn = e.target.closest('button.nav-item');
-            if (btn) switchView(btn.dataset.page);
-        });
+    elements.navItems.forEach((nav) => {
+        nav.addEventListener('click', () => switchView(nav.dataset.page));
     });
 
-    // ── WebSocket Connection Manager ──
-    function connectWS() {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws`;
-
-        ws = new WebSocket(wsUrl);
-
-        ws.onopen = () => {
-            console.log('[WS] Connected to Agent-02');
-            elements.wsStatus.classList.remove('status-offline');
-            elements.wsStatus.classList.add('status-online');
-            elements.statusText.textContent = 'Agent Online';
-            appendLog('SYSTEM', 'Neural link established. WebSocket connected.', 'info');
-
-            // Re-fetch consents purely to update badge
-            fetchConsents();
-            fetchSystemStats();
-        };
-
-        ws.onclose = () => {
-            console.log('[WS] Disconnected. Reconnecting in 3s...');
-            elements.wsStatus.classList.add('status-offline');
-            elements.wsStatus.classList.remove('status-online');
-            elements.statusText.textContent = 'Disconnected';
-
-            clearTimeout(reconnectTimer);
-            reconnectTimer = setTimeout(connectWS, 3000);
-        };
-
-        ws.onerror = (err) => {
-            console.error('[WS] Error:', err);
-        };
-
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                handleSocketMessage(data);
-            } catch (err) {
-                console.error('[WS] Failed to parse message:', err);
-            }
-        };
+    function setConnectionState(connected) {
+        elements.wsStatus.classList.toggle('status-online', connected);
+        elements.wsStatus.classList.toggle('status-offline', !connected);
+        elements.statusText.textContent = connected ? 'Agent Online' : 'Disconnected';
     }
 
-    function handleSocketMessage(msg) {
-        switch (msg.type) {
-            case 'log':
-                appendLog(msg.source, msg.message, msg.level);
-                break;
-            case 'chat:stream':
-                handleChatStream(msg.data?.token, msg.data?.done);
-                break;
-            case 'chat:error':
-                appendChatMessage('System', `Error: ${msg.error}`, 'error');
-                uiSetStreaming(false);
-                break;
-            case 'chat:tool':
-                appendToolItem(msg.text);
-                break;
-            case 'consent:request':
-                // The backend asks for permission
-                handleConsentRequest(msg.data);
-                break;
-            default:
-                console.log('Unknown WS msg:', msg);
-        }
-    }
-
-    // ── System Stats ──
-    let uptimeStart = Date.now();
-    function fetchSystemStats() {
-        setInterval(() => {
-            // Update Fake Uptime
-            const diff = Math.floor((Date.now() - uptimeStart) / 1000);
-            const hrs = Math.floor(diff / 3600).toString().padStart(2, '0');
-            const mins = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
-            const secs = (diff % 60).toString().padStart(2, '0');
-            elements.sysUptime.textContent = `${hrs}:${mins}:${secs}`;
-
-            // Wait for endpoint or use mock memory stats
-            if (window.performance && window.performance.memory) {
-                const mb = Math.round(window.performance.memory.usedJSHeapSize / (1024 * 1024));
-                elements.sysMemory.textContent = `${mb} MB`;
-            } else {
-                elements.sysMemory.textContent = `${Math.floor(Math.random() * 20 + 85)} MB`; // visual pseudo fallback
-            }
-        }, 1000);
-    }
-
-    // ── Logs ──
     function appendLog(source, message, level = 'info') {
-        const time = new Date().toLocaleTimeString();
-        const div = document.createElement('div');
-        div.className = `log-entry ${level}`;
-        div.innerHTML = `
-            <span class="log-time">[${time}]</span>
-            <span class="log-source">[${source}]</span>
-            <span class="log-msg">${formatLogText(message)}</span>
+        const line = document.createElement('div');
+        line.className = `log-entry ${level}`;
+        line.innerHTML = `
+            <span class="log-time">[${new Date().toLocaleTimeString()}]</span>
+            <span class="log-source">[${escapeHtml(source)}]</span>
+            <span class="log-msg">${escapeHtml(message)}</span>
         `;
 
-        elements.liveLog.appendChild(div);
-
-        // Auto-scroll but keep maximum 100 lines
-        if (elements.liveLog.children.length > 100) {
+        elements.liveLog.appendChild(line);
+        while (elements.liveLog.children.length > 120) {
             elements.liveLog.removeChild(elements.liveLog.firstChild);
         }
         scrollToBottom(elements.liveLog.parentElement);
+    }
 
-        // Also stick to dashboard view if they are there
-        const dbStat = document.getElementById('sys-llm');
-        if (source === 'llm' && message.includes('Model')) {
-            dbStat.textContent = message.split(' ')[0] || 'Active';
+    function appendChatMessage(role, text) {
+        const wrapper = document.createElement('div');
+        wrapper.className = `message ${role === 'user' ? 'user-message' : 'system-message'}`;
+        wrapper.innerHTML = `
+            <div class="avatar">${role === 'user' ? 'U' : '⚡'}</div>
+            <div class="content markdown">${role === 'user' ? escapeHtml(text) : renderMarkdown(text)}</div>
+        `;
+        elements.chatMessages.appendChild(wrapper);
+        scrollToBottom(elements.chatMessages);
+        return wrapper.querySelector('.content');
+    }
+
+    function appendToolMessage(title, payload) {
+        const card = document.createElement('div');
+        card.className = 'message tool-message';
+        card.innerHTML = `${escapeHtml(title)} <span style="color:var(--accent-cyan)">${escapeHtml(payload)}</span>`;
+        elements.chatMessages.appendChild(card);
+        scrollToBottom(elements.chatMessages);
+    }
+
+    function beginAssistantStream() {
+        state.activeStreamContainer = appendChatMessage('assistant', '');
+        state.activeStreamContainer.innerHTML = renderAssistantContent('', '', true);
+        state.streamBuffer = '';
+        state.reasoningBuffer = '';
+    }
+
+    function finishAssistantStream(finalText, finalReasoning = '') {
+        if (!state.activeStreamContainer) return;
+        state.activeStreamContainer.innerHTML = renderAssistantContent(finalText || '(no response)', finalReasoning);
+        state.activeStreamContainer = null;
+        state.streamBuffer = '';
+        state.reasoningBuffer = '';
+        setStreaming(false);
+    }
+
+    function handleChatStream(payload) {
+        if (payload.sessionId !== state.currentSessionId) return;
+        if (!state.activeStreamContainer) beginAssistantStream();
+
+        if (payload.token) {
+            if (payload.channel === 'reasoning') {
+                state.reasoningBuffer += payload.token;
+            } else {
+                state.streamBuffer += payload.token;
+            }
+            state.activeStreamContainer.innerHTML = renderAssistantContent(state.streamBuffer, state.reasoningBuffer, true);
+            scrollToBottom(elements.chatMessages);
+        }
+
+        if (payload.done) {
+            finishAssistantStream(state.streamBuffer, state.reasoningBuffer);
         }
     }
 
-    function formatLogText(text) {
-        // Simple HTML escape
-        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-        return text.replace(/[&<>"']/g, function (m) { return map[m]; });
+    function setStreaming(value) {
+        state.isStreaming = value;
+        elements.chatInput.disabled = value;
+        elements.btnSendChat.classList.toggle('hidden', value);
+        elements.btnStopChat.classList.toggle('hidden', !value);
+    }
+
+    function connectWS() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const url = `${protocol}//${window.location.host}/ws`;
+        state.ws = new WebSocket(url);
+
+        state.ws.addEventListener('open', () => {
+            setConnectionState(true);
+            appendLog('SYSTEM', 'WebSocket connected.');
+            fetchConsents();
+            fetchStatus();
+        });
+
+        state.ws.addEventListener('close', () => {
+            setConnectionState(false);
+            clearTimeout(state.reconnectTimer);
+            state.reconnectTimer = setTimeout(connectWS, 3000);
+        });
+
+        state.ws.addEventListener('message', (event) => {
+            try {
+                handleSocketMessage(JSON.parse(event.data));
+            } catch (error) {
+                console.error('Failed to parse WebSocket payload', error);
+            }
+        });
+    }
+
+    function handleSocketMessage(message) {
+        switch (message.type) {
+            case 'log':
+                appendLog(message.data?.source || 'system', message.data?.message || '', message.data?.level || 'info');
+                break;
+            case 'error':
+                appendLog(message.data?.source || 'system', message.data?.error || 'Unknown error', 'error');
+                break;
+            case 'tool:call':
+                if (message.data?.sessionId === state.currentSessionId) {
+                    appendToolMessage(`Tool requested: ${message.data.name}`, JSON.stringify(message.data.args || {}));
+                }
+                break;
+            case 'tool:result':
+                if (message.data?.sessionId === state.currentSessionId) {
+                    appendToolMessage('Tool result:', message.data.result || '');
+                }
+                break;
+            case 'consent:request':
+                openConsentModal(message.data);
+                fetchConsents();
+                break;
+            case 'consent:resolve':
+                if (state.activeConsentId === (message.data?.id || message.data?.consentId)) {
+                    closeConsentModal();
+                }
+                fetchConsents();
+                break;
+            case 'chat:stream':
+                handleChatStream(message.data || {});
+                break;
+            case 'chat:error':
+                appendLog('CHAT', message.error || 'Unknown chat error', 'error');
+                setStreaming(false);
+                break;
+            default:
+                break;
+        }
+    }
+
+    async function fetchStatus() {
+        try {
+            const response = await fetch('/api/status');
+            const status = await response.json();
+            elements.sysUptime.textContent = formatUptime(status.uptime || 0);
+            elements.sysMemory.textContent = formatBytes(status.memory?.rss || 0);
+            elements.sysLlm.textContent = status.llm?.provider ? `${status.llm.provider} • ${status.llm.model || 'default'}` : 'Not configured';
+            const runtime = status.runtime || {};
+            elements.runtimeSummary.textContent = `${runtime.localModelCount || 0} local GGUF model(s) detected • workspace: ${runtime.workspace || 'unknown'}`;
+        } catch (error) {
+            elements.runtimeSummary.textContent = 'Failed to read runtime status';
+        }
+    }
+
+    function startStatusPolling() {
+        fetchStatus();
+        clearInterval(state.statusTimer);
+        state.statusTimer = setInterval(fetchStatus, 5000);
     }
 
     async function fetchHistoryLogs() {
         try {
-            elements.historyLog.innerHTML = 'Loading history...';
-            const res = await fetch('/api/logs?limit=200');
-            const logs = await res.json();
-
+            const response = await fetch('/api/logs?limit=200');
+            const logs = await response.json();
             elements.historyLog.innerHTML = '';
-            logs.reverse().forEach(log => {
-                const tsRaw = log.timestamp || log.created_at || '';
-                const tsIso = tsRaw.replace(' ', 'T') + 'Z';
-                const date = new Date(tsIso).toLocaleString();
-                const div = document.createElement('div');
-                div.className = `log-entry ${log.level}`;
-                div.innerHTML = `
-                    <span class="log-time">[${date}]</span>
-                    <span class="log-source">[${log.source}]</span>
-                    <span class="log-msg">${formatLogText(log.message)}</span>
+
+            logs.forEach((entry) => {
+                const line = document.createElement('div');
+                line.className = `log-entry ${entry.level || 'info'}`;
+                line.innerHTML = `
+                    <span class="log-time">[${formatDate(entry.created_at)}]</span>
+                    <span class="log-source">[${escapeHtml(entry.source || 'system')}]</span>
+                    <span class="log-msg">${escapeHtml(entry.message || '')}</span>
                 `;
-                elements.historyLog.appendChild(div);
+                elements.historyLog.appendChild(line);
             });
+
             scrollToBottom(elements.historyLog.parentElement);
-        } catch (e) {
+        } catch (error) {
             elements.historyLog.innerHTML = '<span class="text-danger">Failed to load logs.</span>';
-        }
-    }
-    elements.btnRefreshLogs.addEventListener('click', fetchHistoryLogs);
-
-    // ── Chat Flow ──
-    let activeStreamMsgContainer = null;
-    let mdRawText = '';
-
-    function uiSetStreaming(isStreamingState) {
-        isStreaming = isStreamingState;
-        elements.chatInput.disabled = isStreamingState;
-
-        if (isStreamingState) {
-            elements.btnSendChat.classList.add('hidden');
-            elements.btnStopChat.classList.remove('hidden');
-        } else {
-            elements.btnSendChat.classList.remove('hidden');
-            elements.btnStopChat.classList.add('hidden');
-            setTimeout(() => elements.chatInput.focus(), 100);
         }
     }
 
     async function sendChat() {
-        if (isStreaming) return;
-        const msg = elements.chatInput.value.trim();
-        if (!msg) return;
+        if (state.isStreaming) return;
 
-        // Display user msg
-        appendChatMessage('User', msg, 'user');
+        const message = elements.chatInput.value.trim();
+        if (!message) return;
+
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+            appendLog('CHAT', 'Connection is not ready yet.', 'warn');
+            return;
+        }
+
+        appendChatMessage('user', message);
         elements.chatInput.value = '';
+        beginAssistantStream();
+        setStreaming(true);
 
-        // Setup UI for incoming stream
-        uiSetStreaming(true);
-        activeStreamMsgContainer = createIncomingMessageBlock();
-        mdRawText = '';
-
-        // Send to backend via REST (or WS). Using REST allows easy streaming response handling via WS
-        try {
-            // Note: chat goes over socket via API fallback or dedicated WS command?
-            // Since backend server.ts doesn't have POST /api/chat anymore, we send via WebSocket!
-            ws.send(JSON.stringify({
-                type: 'chat',
-                userId: currentSessionId,
-                sessionId: currentSessionId,
-                text: msg
-            }));
-
-        } catch (e) {
-            console.error('Send error:', e);
-            appendChatMessage('System', 'Failed to send message: network error', 'error');
-            uiSetStreaming(false);
-        }
-    }
-
-    function appendChatMessage(sender, text, role) {
-        const div = document.createElement('div');
-        div.className = `message ${role}-message`;
-
-        let avatar = role === 'user' ? 'U' : '⚡';
-        let parsed = role === 'user' ? formatLogText(text) : (typeof marked !== 'undefined' ? marked.parse(text) : text);
-
-        div.innerHTML = `
-            <div class="avatar">${avatar}</div>
-            <div class="content markdown">${parsed}</div>
-        `;
-        elements.chatMessages.appendChild(div);
-        scrollToBottom(elements.chatMessages);
-    }
-
-    function appendToolItem(text) {
-        // Just inject a small tool use notification above the active stream
-        if (!activeStreamMsgContainer) activeStreamMsgContainer = createIncomingMessageBlock();
-        const parent = activeStreamMsgContainer.parentNode;
-
-        const div = document.createElement('div');
-        div.className = `message tool-message`;
-        div.innerHTML = `🛠 Executing tool: <span style="color:var(--accent-cyan)">${formatLogText(text)}</span>`;
-        parent.insertBefore(div, activeStreamMsgContainer);
-        scrollToBottom(elements.chatMessages);
-    }
-
-    function createIncomingMessageBlock() {
-        const div = document.createElement('div');
-        div.className = `message system-message`;
-        div.innerHTML = `
-            <div class="avatar">⚡</div>
-            <div class="content markdown"><div class="streaming-cursor"></div></div>
-        `;
-        elements.chatMessages.appendChild(div);
-        scrollToBottom(elements.chatMessages);
-        return div.querySelector('.content.markdown');
-    }
-
-    function handleChatStream(chunk, isDone) {
-        if (!activeStreamMsgContainer) {
-            activeStreamMsgContainer = createIncomingMessageBlock();
-            mdRawText = '';
-        }
-
-        if (chunk) mdRawText += chunk;
-
-        // Convert <think> tags so browser doesn't hide them
-        let renderText = mdRawText
-            .replace(/<think>/g, '<div class="think-block" style="border-left: 3px solid #00f0ff; padding-left: 10px; margin: 10px 0; color: #aaa; font-style: italic;"><b>🤔 Reasoning:</b><br/>')
-            .replace(/<\/think>/g, '</div><br/>');
-
-        if (isDone) {
-            if (typeof marked !== 'undefined') {
-                activeStreamMsgContainer.innerHTML = marked.parse(renderText);
-            } else {
-                activeStreamMsgContainer.innerText = renderText;
-            }
-            activeStreamMsgContainer = null;
-            uiSetStreaming(false);
-        } else {
-            // Live render with cursor
-            if (typeof marked !== 'undefined') {
-                activeStreamMsgContainer.innerHTML = marked.parse(renderText) + '<div class="streaming-cursor"></div>';
-            } else {
-                activeStreamMsgContainer.innerText = renderText + '...';
-            }
-        }
-        scrollToBottom(elements.chatMessages);
+        state.ws.send(JSON.stringify({
+            type: 'chat',
+            sessionId: state.currentSessionId,
+            text: message,
+        }));
     }
 
     function stopChat() {
-        if (ws && isStreaming) {
-            ws.send(JSON.stringify({ type: 'abort' }));
-            uiSetStreaming(false);
-            if (activeStreamMsgContainer) {
-                const cursor = activeStreamMsgContainer.querySelector('.streaming-cursor');
-                if (cursor) cursor.remove();
-                activeStreamMsgContainer = null;
-            }
-            appendLog('SYSTEM', 'Chat generation aborted by user', 'warn');
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.isStreaming) {
+            return;
         }
+
+        state.ws.send(JSON.stringify({
+            type: 'stop',
+            sessionId: state.currentSessionId,
+        }));
+        appendLog('CHAT', 'Generation stopped by user.', 'warn');
+        finishAssistantStream(state.streamBuffer, state.reasoningBuffer);
     }
 
-    elements.btnSendChat.addEventListener('click', sendChat);
-    elements.btnStopChat.addEventListener('click', stopChat);
-    elements.chatInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendChat();
-        }
-    });
-    elements.btnNewChat.addEventListener('click', () => {
-        elements.chatMessages.innerHTML = `
-            <div class="message system-message">
-                <div class="avatar">⚡</div>
-                <div class="content markdown"><p>New session started. How can I assist you?</p></div>
-            </div>`;
-        currentSessionId = crypto.randomUUID();
-        localStorage.setItem('agent02_session', currentSessionId);
-    });
-
-    // ── Consents Flow ──
     async function fetchConsents() {
         try {
-            const res = await fetch('/api/consents');
-            const items = await res.json();
-            renderConsents(items);
-
-            // Update badge (filter only pending)
-            const count = items.length;
-            elements.consentBadge.textContent = count;
-            if (count > 0) elements.consentBadge.classList.remove('hidden');
-            else elements.consentBadge.classList.add('hidden');
-
-        } catch (err) {
-            console.error('Fetch consents error:', err);
+            const response = await fetch('/api/consents');
+            const consents = await response.json();
+            renderConsents(consents);
+        } catch (error) {
+            console.error('Failed to load consents', error);
         }
     }
 
     function renderConsents(items) {
         elements.consentsContainer.innerHTML = '';
-        if (items.length === 0) {
-            elements.consentsContainer.innerHTML = '<div class="empty-state">No pending requests.</div>';
+        const count = items.length;
+        elements.consentBadge.textContent = String(count);
+        elements.consentBadge.classList.toggle('hidden', count === 0);
+
+        if (count === 0) {
+            elements.consentsContainer.innerHTML = '<div class="empty-state">No pending approvals.</div>';
             return;
         }
 
-        items.forEach(req => {
-            const div = document.createElement('div');
-            div.className = 'consent-card glass-panel';
-            div.innerHTML = `
+        items.forEach((item) => {
+            const card = document.createElement('div');
+            card.className = 'consent-card glass-panel';
+            card.innerHTML = `
                 <div class="consent-details">
-                    <h4>Action Request #${req.id.substring(0, 8)}</h4>
-                    <div class="consent-args">Skill: ${req.toolName}<br>Params: ${JSON.stringify(req.args)}</div>
+                    <h4>${escapeHtml(item.skillName || 'Unknown skill')}</h4>
+                    <div class="consent-args">Session: ${escapeHtml(item.sessionId || '')}<br>Args: ${escapeHtml(JSON.stringify(item.args || {}, null, 2))}</div>
                 </div>
                 <div class="consent-actions">
-                    <button class="btn btn-outline text-danger btn-deny" data-id="${req.id}">Deny</button>
-                    <button class="btn btn-primary btn-approve" data-id="${req.id}">Approve</button>
+                    <button class="btn btn-outline text-danger btn-deny">Deny</button>
+                    <button class="btn btn-primary btn-approve">Approve</button>
                 </div>
             `;
-            elements.consentsContainer.appendChild(div);
-        });
 
-        // Bind buttons
-        elements.consentsContainer.querySelectorAll('.btn-deny').forEach(b => b.addEventListener('click', (e) => answerConsent(e.target.dataset.id, false)));
-        elements.consentsContainer.querySelectorAll('.btn-approve').forEach(b => b.addEventListener('click', (e) => answerConsent(e.target.dataset.id, true)));
+            card.querySelector('.btn-deny').addEventListener('click', () => answerConsent(item.id, false));
+            card.querySelector('.btn-approve').addEventListener('click', () => answerConsent(item.id, true));
+            elements.consentsContainer.appendChild(card);
+        });
     }
 
-    function handleConsentRequest(req) {
-        // Pop modal if not already open
-        activeConsentId = req.id;
-        elements.modalSkillName.textContent = req.toolName;
-        elements.modalSkillArgs.textContent = JSON.stringify(req.args, null, 2);
-
+    function openConsentModal(consent) {
+        state.activeConsentId = consent.id || consent.consentId;
+        elements.modalSkillName.textContent = consent.skillName || 'Unknown skill';
+        elements.modalSkillArgs.textContent = JSON.stringify(consent.args || {}, null, 2);
         elements.modalBackdrop.classList.remove('hidden');
         elements.consentModal.classList.remove('hidden');
-
-        // Also background update the list
-        fetchConsents();
     }
 
-    async function answerConsent(id, isApproved) {
+    function closeConsentModal() {
+        state.activeConsentId = null;
+        elements.modalBackdrop.classList.add('hidden');
+        elements.consentModal.classList.add('hidden');
+    }
+
+    async function answerConsent(id, approved) {
         try {
             await fetch(`/api/consents/${id}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ approved: isApproved })
+                body: JSON.stringify({ approved }),
             });
-
-            // Hide modal if it was this one
-            if (activeConsentId === id) {
-                elements.modalBackdrop.classList.add('hidden');
-                elements.consentModal.classList.add('hidden');
-                activeConsentId = null;
-            }
-
+            closeConsentModal();
             fetchConsents();
-        } catch (e) {
-            console.error("Failed to answer consent:", e);
+        } catch (error) {
+            appendLog('CONSENT', 'Failed to submit approval.', 'error');
         }
     }
 
-    elements.modalBtnApprove.addEventListener('click', () => answerConsent(activeConsentId, true));
-    elements.modalBtnDeny.addEventListener('click', () => answerConsent(activeConsentId, false));
-
-    // ── Sessions Flow ──
     async function fetchSessions() {
         try {
-            elements.sessionsList.innerHTML = '<tr><td colspan="5" class="text-center p-4">Loading sessions...</td></tr>';
-            const res = await fetch('/api/sessions');
-            const data = await res.json();
-
+            const response = await fetch('/api/sessions');
+            const sessions = await response.json();
             elements.sessionsList.innerHTML = '';
-            if (data.length === 0) {
-                elements.sessionsList.innerHTML = '<tr><td colspan="5" class="text-center p-4">No active sessions.</td></tr>';
+
+            if (sessions.length === 0) {
+                elements.sessionsList.innerHTML = '<tr><td colspan="6" class="text-center p-4">No sessions yet.</td></tr>';
                 return;
             }
 
-            data.forEach(s => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="font-mono text-xs">${s.id}</td>
-                    <td><span class="badge ${s.platform === 'web' ? 'badge-secure' : ''}">${s.platform.toUpperCase()}</span></td>
-                    <td>${s.userId}</td>
-                    <td>${new Date(s.updatedAt).toLocaleString()}</td>
-                    <td>
-                        <button class="btn btn-outline text-xs" onclick="alert('Viewing session history not implemented in this demo')">View Logs</button>
-                    </td>
+            sessions.forEach((session) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="font-mono text-xs">${escapeHtml(session.id)}</td>
+                    <td>${escapeHtml((session.platform || '').toUpperCase())}</td>
+                    <td>${escapeHtml(session.displayName || session.userId || 'Unknown')}</td>
+                    <td>${escapeHtml(String(session.messageCount || 0))}</td>
+                    <td>${escapeHtml(formatDate(session.updatedAt))}</td>
+                    <td><button class="btn btn-outline text-xs">Continue Here</button></td>
                 `;
-                elements.sessionsList.appendChild(tr);
+
+                row.querySelector('button').addEventListener('click', () => openSession(session.id));
+                elements.sessionsList.appendChild(row);
             });
-        } catch (e) {
-            elements.sessionsList.innerHTML = '<tr><td colspan="5" class="text-danger text-center p-4">Failed to load</td></tr>';
+        } catch (error) {
+            elements.sessionsList.innerHTML = '<tr><td colspan="6" class="text-danger text-center p-4">Failed to load sessions.</td></tr>';
         }
     }
 
-    // ── Settings Flow ──
+    async function openSession(sessionId) {
+        try {
+            const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/messages`);
+            const messages = await response.json();
+            state.currentSessionId = sessionId;
+            localStorage.setItem('agent02_session', state.currentSessionId);
+            elements.chatMessages.innerHTML = '';
+
+            messages.forEach((message) => {
+                if (message.role === 'tool') {
+                    appendToolMessage('Tool result:', message.content);
+                    return;
+                }
+
+                if (message.role === 'assistant' || message.role === 'system') {
+                    appendChatMessage('assistant', message.content);
+                    return;
+                }
+
+                appendChatMessage('user', message.content);
+            });
+
+            if (messages.length === 0) {
+                appendChatMessage('assistant', 'This session is empty.');
+            }
+
+            switchView('chat');
+        } catch (error) {
+            appendLog('SESSIONS', 'Failed to open the selected session.', 'error');
+        }
+    }
+
+    function fillLocalModels(runtimeInfo, selectedPath) {
+        elements.cfgLocalModel.innerHTML = '<option value="">Choose a detected model</option>';
+
+        const models = runtimeInfo?.localModels || [];
+        if (models.length === 0) {
+            elements.cfgLocalModel.innerHTML = '<option value="">No GGUF models found</option>';
+            return;
+        }
+
+        models.forEach((model) => {
+            const option = document.createElement('option');
+            option.value = model.path;
+            option.textContent = `${model.name} • ${(model.sizeBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+            option.selected = model.path === selectedPath;
+            elements.cfgLocalModel.appendChild(option);
+        });
+    }
+
+    function updateProviderUI() {
+        const provider = elements.cfgProvider.value;
+        const isLlamaCpp = provider === 'llamacpp';
+        const isCloud = !['llamacpp', 'ollama'].includes(provider);
+
+        elements.cfgLocalModel.disabled = !isLlamaCpp;
+        elements.cfgApikey.placeholder = isLlamaCpp
+            ? 'Path to a .gguf model file'
+            : isCloud
+                ? 'Paste your API key'
+                : 'Leave empty unless your provider needs a token';
+
+        if (isLlamaCpp && elements.cfgLocalModel.value) {
+            elements.cfgApikey.value = elements.cfgLocalModel.value;
+            if (!elements.cfgModel.value.trim()) {
+                elements.cfgModel.value = getFileNameFromPath(elements.cfgLocalModel.value);
+            }
+        }
+    }
+
     async function loadSettings() {
         try {
-            const res = await fetch('/api/config');
-            const cfg = await res.json();
+            const [configResponse, runtimeResponse] = await Promise.all([
+                fetch('/api/config'),
+                fetch('/api/runtime'),
+            ]);
 
-            elements.cfgProvider.value = cfg.llm?.provider || 'ollama';
-            elements.cfgModel.value = cfg.llm?.model || '';
-            elements.cfgBaseurl.value = cfg.llm?.baseUrl || '';
+            state.loadedConfig = await configResponse.json();
+            state.runtimeInfo = await runtimeResponse.json();
 
-            elements.cfgShellEnabled.checked = cfg.skills?.shell === true;
+            const cfg = state.loadedConfig;
+            elements.cfgProvider.value = cfg.llm.provider || 'llamacpp';
+            const localModelName = getFileNameFromPath(cfg.llm.ggufPath || '');
+            elements.cfgModel.value = cfg.llm.model || (cfg.llm.provider === 'llamacpp' ? localModelName : '');
+            elements.cfgBaseurl.value = cfg.llm.baseUrl || '';
+            elements.cfgApikey.value = cfg.llm.provider === 'llamacpp' ? (cfg.llm.ggufPath || '') : '';
+            elements.cfgApikey.dataset.maskedValue = cfg.llm.apiKeyMasked || '';
+            elements.cfgSystemPrompt.value = cfg.llm.systemPrompt || '';
+            elements.cfgTelegramEnabled.checked = !!cfg.connectors.telegram.enabled;
+            elements.cfgTelegram.value = '';
+            elements.cfgTelegram.placeholder = cfg.connectors.telegram.tokenMasked || 'Telegram bot token';
+            elements.cfgDiscordEnabled.checked = !!cfg.connectors.discord.enabled;
+            elements.cfgDiscord.value = '';
+            elements.cfgDiscord.placeholder = cfg.connectors.discord.tokenMasked || 'Discord bot token';
+            elements.cfgShellEnabled.checked = !!cfg.skills.shellEnabled;
+            elements.cfgWorkdir.value = cfg.security.allowedWorkDir || '';
 
-            // Do not mask local paths or keys for transparent auditing
-            elements.cfgApikey.value = cfg.llm?.apiKey || cfg.llm?.ggufPath || '';
-            elements.cfgTelegram.value = cfg.connectors?.telegram?.token || '';
-            elements.cfgDiscord.value = cfg.connectors?.discord?.token || '';
-        } catch (err) {
-            console.error('Failed to load settings', err);
+            fillLocalModels(state.runtimeInfo, cfg.llm.ggufPath);
+            updateProviderUI();
+
+            elements.runtimeHint.innerHTML = `
+                llama.cpp folder: ${escapeHtml(state.runtimeInfo.llamaCppDir || 'not found')}<br>
+                Models folder: ${escapeHtml(state.runtimeInfo.modelsDir || 'not found')}<br>
+                Messenger connector changes may require an app restart.
+            `;
+        } catch (error) {
+            elements.runtimeHint.textContent = 'Failed to load settings.';
         }
     }
 
-    elements.btnSaveSettings.addEventListener('click', async () => {
-        const btn = elements.btnSaveSettings;
-        const oldText = btn.textContent;
-        btn.textContent = 'Saving...';
-        btn.disabled = true;
-
-        const partialCfg = {
+    async function saveSettings() {
+        const payload = {
             llm: {
                 provider: elements.cfgProvider.value,
-                model: elements.cfgModel.value,
+                model: elements.cfgModel.value.trim(),
+                baseUrl: elements.cfgBaseurl.value.trim(),
+                systemPrompt: elements.cfgSystemPrompt.value.trim(),
+            },
+            connectors: {
+                telegram: {
+                    enabled: elements.cfgTelegramEnabled.checked,
+                },
+                discord: {
+                    enabled: elements.cfgDiscordEnabled.checked,
+                },
             },
             skills: {
-                shell: elements.cfgShellEnabled.checked
-            }
+                shellEnabled: elements.cfgShellEnabled.checked,
+            },
+            security: {
+                allowedWorkDir: elements.cfgWorkdir.value.trim(),
+            },
         };
 
-        if (elements.cfgBaseurl.value) partialCfg.llm.baseUrl = elements.cfgBaseurl.value;
-        if (elements.cfgApikey.value && elements.cfgApikey.value !== '********') {
-            if (elements.cfgProvider.value === 'llamacpp') {
-                partialCfg.llm.ggufPath = elements.cfgApikey.value;
-            } else {
-                partialCfg.llm.apiKey = elements.cfgApikey.value;
-            }
+        const provider = payload.llm.provider;
+        const enteredKeyOrPath = elements.cfgApikey.value.trim();
+        const selectedLocalModel = elements.cfgLocalModel.value;
+
+        if (provider === 'llamacpp') {
+            payload.llm.ggufPath = enteredKeyOrPath || selectedLocalModel || state.loadedConfig?.llm?.ggufPath || '';
+            payload.llm.model = payload.llm.model || getFileNameFromPath(payload.llm.ggufPath);
+        } else if (enteredKeyOrPath) {
+            payload.llm.apiKey = enteredKeyOrPath;
         }
 
-        // Also connectors if updated
-        if ((elements.cfgTelegram.value && elements.cfgTelegram.value !== '********') ||
-            (elements.cfgDiscord.value && elements.cfgDiscord.value !== '********')) {
-            partialCfg.connectors = {
-                telegram: { token: elements.cfgTelegram.value !== '********' ? elements.cfgTelegram.value : undefined },
-                discord: { token: elements.cfgDiscord.value !== '********' ? elements.cfgDiscord.value : undefined }
-            }
-        }
+        const telegramToken = elements.cfgTelegram.value.trim();
+        const discordToken = elements.cfgDiscord.value.trim();
+        if (telegramToken) payload.connectors.telegram.token = telegramToken;
+        if (discordToken) payload.connectors.discord.token = discordToken;
+
+        const button = elements.btnSaveSettings;
+        const originalLabel = button.textContent;
+        button.textContent = 'Saving...';
+        button.disabled = true;
 
         try {
-            await fetch('/api/config', {
+            const response = await fetch('/api/config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(partialCfg)
+                body: JSON.stringify(payload),
             });
-            btn.textContent = 'Saved!';
-            btn.classList.add('btn-success');
+            const result = await response.json();
+            state.loadedConfig = result.config || state.loadedConfig;
+            button.textContent = 'Saved';
+            appendLog('SETTINGS', 'Configuration updated.', 'info');
+            await loadSettings();
+            await fetchStatus();
+        } catch (error) {
+            button.textContent = 'Save Failed';
+            appendLog('SETTINGS', 'Failed to save configuration.', 'error');
+        } finally {
             setTimeout(() => {
-                btn.textContent = oldText;
-                btn.classList.remove('btn-success');
-                btn.disabled = false;
-            }, 2000);
-        } catch (err) {
-            btn.textContent = 'Save Failed';
-            setTimeout(() => {
-                btn.textContent = oldText;
-                btn.disabled = false;
-            }, 2000);
+                button.textContent = originalLabel;
+                button.disabled = false;
+            }, 1200);
         }
-    });
-
-    // ── Helper ──
-    function scrollToBottom(elem) {
-        if (!elem) return;
-        elem.scrollTop = elem.scrollHeight;
     }
 
-    // ── Boot ──
+    elements.btnRefreshLogs.addEventListener('click', fetchHistoryLogs);
+    elements.btnSendChat.addEventListener('click', sendChat);
+    elements.btnStopChat.addEventListener('click', stopChat);
+    elements.btnNewChat.addEventListener('click', () => {
+        state.currentSessionId = crypto.randomUUID();
+        localStorage.setItem('agent02_session', state.currentSessionId);
+        elements.chatMessages.innerHTML = '';
+        appendChatMessage('assistant', 'New session started. Ask anything.');
+    });
+    elements.chatInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            sendChat();
+        }
+    });
+    elements.modalBtnApprove.addEventListener('click', () => state.activeConsentId && answerConsent(state.activeConsentId, true));
+    elements.modalBtnDeny.addEventListener('click', () => state.activeConsentId && answerConsent(state.activeConsentId, false));
+    elements.cfgProvider.addEventListener('change', updateProviderUI);
+    elements.cfgLocalModel.addEventListener('change', () => {
+        if (elements.cfgProvider.value === 'llamacpp' && elements.cfgLocalModel.value) {
+            elements.cfgApikey.value = elements.cfgLocalModel.value;
+            elements.cfgModel.value = getFileNameFromPath(elements.cfgLocalModel.value);
+        }
+    });
+    elements.btnSaveSettings.addEventListener('click', saveSettings);
+
     connectWS();
-    fetchSystemStats();
+    startStatusPolling();
+    fetchHistoryLogs();
+    fetchConsents();
 });

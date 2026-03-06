@@ -3,40 +3,68 @@
 // Auto-detects llama-server.exe from adjacent llama.cpp folder
 // ═══════════════════════════════════════════════════
 
-import type { LLMProvider, LLMMessage, LLMResult } from './provider.js';
+import type { LLMProvider, LLMMessage, LLMResult, LLMRequestOptions, ToolDefinition, LLMStreamChunk } from './provider.js';
 import { log } from '../gateway/eventbus.js';
 import { execSync, spawn, type ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { LLAMA_SERVER_CANDIDATES, MODELS_DIR } from '../paths.js';
+import { freePortIfOccupied } from '../runtime/ports.js';
 
 export class LlamaCppProvider implements LLMProvider {
     readonly name: string;
     private ggufPath: string;
-    private serverUrl = 'http://127.0.0.1:8081';
+    private serverUrl: string;
     private serverProcess: ChildProcess | null = null;
+    private spawnedServer = false;
 
-    constructor(ggufPath: string) {
+    constructor(ggufPath: string, serverUrl = 'http://127.0.0.1:8081') {
         this.name = `llamacpp:${path.basename(ggufPath)}`;
         this.ggufPath = ggufPath;
+        this.serverUrl = serverUrl;
         log('info', 'llamacpp', `Provider created for model: ${ggufPath}`);
     }
 
-    private findServerBinary(): string {
-        // Search order: adjacent llama.cpp folder, PATH, current dir
-        const searchPaths = [
-            // Relative to agent-02 project root -> sibling llama.cpp folder
-            path.resolve(__dirname, '..', '..', '..', 'llama.cpp', 'llama-server.exe'),
-            path.resolve(__dirname, '..', '..', '..', 'llama.cpp', 'llama-server'),
-            // Common Windows locations
-            'C:\\llama.cpp\\llama-server.exe',
-            // In PATH
-            'llama-server',
+    private getServerEndpoint(): { host: string; port: number; managed: boolean } {
+        try {
+            const url = new URL(this.serverUrl);
+            const host = url.hostname || '127.0.0.1';
+            const port = Number(url.port || (url.protocol === 'https:' ? 443 : 80));
+            const managed = ['127.0.0.1', 'localhost'].includes(host) && Number.isInteger(port) && port > 0;
+            return { host, port, managed };
+        } catch {
+            return { host: '127.0.0.1', port: 8081, managed: true };
+        }
+    }
+
+    private resolveModelPath(): string {
+        const rawValue = (this.ggufPath || '').trim();
+        if (!rawValue) {
+            return rawValue;
+        }
+
+        const candidates = [
+            rawValue,
+            path.resolve(rawValue),
+            path.join(MODELS_DIR, rawValue),
+            path.join(MODELS_DIR, path.basename(rawValue)),
         ];
 
-        for (const p of searchPaths) {
+        for (const candidate of candidates) {
+            if (candidate && fs.existsSync(candidate)) {
+                if (candidate !== this.ggufPath) {
+                    log('info', 'llamacpp', `Resolved GGUF path to: ${candidate}`);
+                }
+                this.ggufPath = candidate;
+                return candidate;
+            }
+        }
+
+        return rawValue;
+    }
+
+    private findServerBinary(): string {
+        for (const p of LLAMA_SERVER_CANDIDATES) {
             try {
                 if (fs.existsSync(p)) {
                     log('info', 'llamacpp', `Found llama-server at: ${p}`);
@@ -53,34 +81,54 @@ export class LlamaCppProvider implements LLMProvider {
 
         throw new Error(
             'llama-server not found! Searched:\n' +
-            searchPaths.map(p => `  - ${p}`).join('\n') +
+            LLAMA_SERVER_CANDIDATES.map(p => `  - ${p}`).join('\n') +
             '\n\nDownload from: https://github.com/ggerganov/llama.cpp/releases'
         );
     }
 
     private async ensureServer(): Promise<void> {
+        const endpoint = this.getServerEndpoint();
+
         // Check if already running
-        try {
-            const res = await fetch(`${this.serverUrl}/health`, { signal: AbortSignal.timeout(2000) });
-            if (res.ok) {
-                log('info', 'llamacpp', 'llama-server already running');
-                return;
+        if (this.serverProcess?.pid) {
+            try {
+                const res = await fetch(`${this.serverUrl}/health`, { signal: AbortSignal.timeout(2000) });
+                if (res.ok) {
+                    log('info', 'llamacpp', 'llama-server already running');
+                    return;
+                }
+            } catch { }
+        } else if (!endpoint.managed) {
+            try {
+                const res = await fetch(`${this.serverUrl}/health`, { signal: AbortSignal.timeout(2000) });
+                if (res.ok) {
+                    log('info', 'llamacpp', `Using external llama-server at ${this.serverUrl}`);
+                    return;
+                }
+            } catch { }
+
+            throw new Error(`llama-server is unreachable at ${this.serverUrl}. Start it manually or switch back to the local default URL.`);
+        } else {
+            const killedPids = await freePortIfOccupied(endpoint.port);
+            if (killedPids.length > 0) {
+                log('warn', 'llamacpp', `Cleared stale llama-server process(es) on port ${endpoint.port}: ${killedPids.join(', ')}`);
             }
-        } catch { }
+        }
 
         // Validate GGUF path
-        if (!this.ggufPath || !fs.existsSync(this.ggufPath)) {
+        const resolvedModelPath = this.resolveModelPath();
+        if (!resolvedModelPath || !fs.existsSync(resolvedModelPath)) {
             throw new Error(`GGUF model not found: "${this.ggufPath}". Check Settings > GGUF Path.`);
         }
 
         // Find and start llama-server
         const serverBin = this.findServerBinary();
-        log('info', 'llamacpp', `Starting llama-server with: ${path.basename(this.ggufPath)}`);
+        log('info', 'llamacpp', `Starting llama-server with: ${path.basename(resolvedModelPath)}`);
 
         const args = [
-            '-m', this.ggufPath,
-            '--host', '127.0.0.1',
-            '--port', '8081',
+            '-m', resolvedModelPath,
+            '--host', endpoint.host,
+            '--port', String(endpoint.port),
             '-c', '4096',
             '-ngl', '99',  // Offload all layers to GPU
         ];
@@ -95,6 +143,7 @@ export class LlamaCppProvider implements LLMProvider {
             detached: false,
             cwd: serverDir,
         });
+        this.spawnedServer = true;
 
         // Capture llama-server output for GPU/CPU diagnostics
         this.serverProcess.stderr?.on('data', (chunk: Buffer) => {
@@ -116,6 +165,7 @@ export class LlamaCppProvider implements LLMProvider {
                 log('error', 'llamacpp', `Server exited with code ${code}`);
             }
             this.serverProcess = null;
+            this.spawnedServer = false;
         });
 
         // Wait for server to be ready (up to 60 seconds for large models)
@@ -136,7 +186,7 @@ export class LlamaCppProvider implements LLMProvider {
         throw new Error('llama-server failed to start within 60 seconds. Check if model is valid.');
     }
 
-    async chat(messages: LLMMessage[]): Promise<LLMResult> {
+    async chat(messages: LLMMessage[], _tools?: ToolDefinition[], options?: LLMRequestOptions): Promise<LLMResult> {
         await this.ensureServer();
 
         try {
@@ -148,6 +198,7 @@ export class LlamaCppProvider implements LLMProvider {
                     max_tokens: 2048,
                     temperature: 0.7,
                 }),
+                signal: options?.signal,
             });
 
             if (!res.ok) {
@@ -164,7 +215,12 @@ export class LlamaCppProvider implements LLMProvider {
     }
 
     // ── Streaming chat ──
-    async chatStream(messages: LLMMessage[], onToken: (token: string) => void): Promise<void> {
+    async chatStream(
+        messages: LLMMessage[],
+        onChunk: (chunk: LLMStreamChunk) => void,
+        _tools?: ToolDefinition[],
+        options?: LLMRequestOptions,
+    ): Promise<void> {
         await this.ensureServer();
 
         const res = await fetch(`${this.serverUrl}/v1/chat/completions`, {
@@ -176,6 +232,7 @@ export class LlamaCppProvider implements LLMProvider {
                 temperature: 0.7,
                 stream: true,
             }),
+            signal: options?.signal,
         });
 
         if (!res.ok) {
@@ -206,11 +263,36 @@ export class LlamaCppProvider implements LLMProvider {
                 try {
                     const json = JSON.parse(data);
                     const delta = json.choices?.[0]?.delta;
-                    // Include both content and reasoning_content (thinking)
-                    const token = delta?.content || delta?.reasoning_content || '';
-                    if (token) onToken(token);
+                    if (delta?.reasoning_content) {
+                        onChunk({ channel: 'reasoning', token: delta.reasoning_content });
+                    }
+                    if (delta?.content) {
+                        onChunk({ channel: 'content', token: delta.content });
+                    }
                 } catch { }
             }
+        }
+    }
+
+    async close(): Promise<void> {
+        if (!this.spawnedServer || !this.serverProcess?.pid) {
+            return;
+        }
+
+        const pid = this.serverProcess.pid;
+        this.spawnedServer = false;
+
+        try {
+            if (process.platform === 'win32') {
+                execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
+            } else {
+                this.serverProcess.kill('SIGTERM');
+            }
+            log('info', 'llamacpp', `Stopped managed llama-server process ${pid}`);
+        } catch (err: any) {
+            log('warn', 'llamacpp', `Failed to stop llama-server cleanly: ${err.message}`);
+        } finally {
+            this.serverProcess = null;
         }
     }
 }

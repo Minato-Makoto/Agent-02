@@ -113,7 +113,9 @@ export function getOrCreateSession(platform: string, uid: string, name = ''): st
     return row.id as string;
   }
 
-  const id = `${platform}_${uid}_${Date.now()}`;
+  const id = platform === 'webui' && uid.trim()
+    ? uid.trim()
+    : `${platform}_${uid}_${Date.now()}`;
   run('INSERT INTO sessions (id, platform, platform_uid, display_name) VALUES (?, ?, ?, ?)', [id, platform, uid, name]);
   return id;
 }

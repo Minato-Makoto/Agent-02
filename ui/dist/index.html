@@ -4,8 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agent-02 | Secure AI Gateway</title>
-    <!-- Modern Fonts -->
+    <title>Agent-02 v4.20 | Private AI Gateway</title>
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;600;800&display=swap"
         rel="stylesheet">
@@ -16,12 +15,10 @@
 </head>
 
 <body>
-    <!-- Background Elements for Premium Feel -->
     <div class="bg-glow bg-glow-1"></div>
     <div class="bg-glow bg-glow-2"></div>
 
     <div class="app-container">
-        <!-- Sidebar Navigation -->
         <nav class="sidebar glass-panel">
             <div class="sidebar-brand">
                 <div class="brand-logo">
@@ -29,7 +26,7 @@
                 </div>
                 <div class="brand-text">
                     <h1>Agent-02</h1>
-                    <span class="badge badge-secure">SECURE</span>
+                    <span class="badge badge-secure">v4.20</span>
                 </div>
             </div>
 
@@ -38,17 +35,17 @@
                     <span class="nav-icon">📊</span> Dashboard
                 </button>
                 <button class="nav-item" data-page="chat">
-                    <span class="nav-icon">💬</span> Chat Terminal
+                    <span class="nav-icon">💬</span> Chat
                 </button>
                 <button class="nav-item" data-page="sessions">
                     <span class="nav-icon">🧠</span> Sessions
                 </button>
                 <button class="nav-item" data-page="consents">
-                    <span class="nav-icon">🛡️</span> Permissions <span id="consent-badge"
+                    <span class="nav-icon">🛡️</span> Approvals <span id="consent-badge"
                         class="badge-count hidden">0</span>
                 </button>
                 <button class="nav-item" data-page="logs">
-                    <span class="nav-icon">📋</span> System Logs
+                    <span class="nav-icon">📋</span> Logs
                 </button>
                 <button class="nav-item" data-page="settings">
                     <span class="nav-icon">⚙️</span> Settings
@@ -63,56 +60,53 @@
             </div>
         </nav>
 
-        <!-- Main Content Area -->
         <main class="main-content">
-
-            <!-- Dashboard View -->
             <section id="view-dashboard" class="view-section active">
                 <header class="view-header">
-                    <h2>Dashboard Overview</h2>
-                    <p class="subtitle">System status and live metrics</p>
+                    <h2>Dashboard</h2>
+                    <p class="subtitle">Live health, provider status, and recent activity</p>
                 </header>
+
                 <div class="dashboard-grid">
                     <div class="stat-card glass-panel">
-                        <div class="stat-icon cpu-icon">💻</div>
+                        <div class="stat-icon cpu-icon">⏱</div>
                         <div class="stat-content">
-                            <h3>System Status</h3>
-                            <div id="sys-uptime" class="stat-value">Booting...</div>
-                            <div class="stat-label">Uptime</div>
+                            <h3>Runtime</h3>
+                            <div id="sys-uptime" class="stat-value">Loading...</div>
+                            <div class="stat-label">Agent uptime</div>
                         </div>
                     </div>
                     <div class="stat-card glass-panel">
-                        <div class="stat-icon mem-icon">📊</div>
+                        <div class="stat-icon mem-icon">💾</div>
                         <div class="stat-content">
-                            <h3>Memory Usage</h3>
+                            <h3>Memory</h3>
                             <div id="sys-memory" class="stat-value">-- MB</div>
-                            <div class="stat-label">Allocated</div>
+                            <div class="stat-label">Current usage</div>
                         </div>
                     </div>
                     <div class="stat-card glass-panel col-span-2">
                         <div class="stat-icon ai-icon">🧠</div>
                         <div class="stat-content">
                             <h3>AI Engine</h3>
-                            <div id="sys-llm" class="stat-value">Detecting...</div>
-                            <div class="stat-label">Active Provider</div>
+                            <div id="sys-llm" class="stat-value">Checking...</div>
+                            <div id="runtime-summary" class="stat-label">Waiting for server details</div>
                         </div>
                     </div>
                 </div>
 
-                <h3 class="section-title mt-8">Live Terminal Stream</h3>
+                <h3 class="section-title mt-8">Live Events</h3>
                 <div class="terminal-container glass-panel">
                     <div id="live-log" class="terminal-output">
-                        <div class="sys-msg">Initializing Agent-02 neural link...</div>
+                        <div class="sys-msg">Connecting to Agent-02...</div>
                     </div>
                 </div>
             </section>
 
-            <!-- Chat View -->
             <section id="view-chat" class="view-section hidden">
                 <header class="view-header flex-between">
                     <div>
-                        <h2>Chat Terminal</h2>
-                        <p class="subtitle">Direct interface with Agent-02</p>
+                        <h2>Chat</h2>
+                        <p class="subtitle">Talk directly with Agent-02 from this browser</p>
                     </div>
                     <button id="btn-new-chat" class="btn btn-outline text-sm">
                         <span class="icon">✨</span> New Session
@@ -124,20 +118,20 @@
                         <div class="message system-message">
                             <div class="avatar">⚡</div>
                             <div class="content markdown">
-                                <p>Welcome to Agent-02 Secure Terminal. How can I assist you today?</p>
+                                <p>Agent-02 is ready. Ask anything, or approve tools when needed.</p>
                             </div>
                         </div>
                     </div>
 
                     <div class="chat-input-area">
-                        <textarea id="chat-input" placeholder="Type a message or command..." rows="1"></textarea>
-                        <button id="btn-send-chat" class="btn btn-primary btn-icon">
+                        <textarea id="chat-input" placeholder="Type your message here..." rows="1"></textarea>
+                        <button id="btn-send-chat" class="btn btn-primary btn-icon" title="Send">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2">
                                 <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" />
                             </svg>
                         </button>
-                        <button id="btn-stop-chat" class="btn btn-danger btn-icon hidden">
+                        <button id="btn-stop-chat" class="btn btn-danger btn-icon hidden" title="Stop">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2">
                                 <rect x="6" y="6" width="12" height="12" />
@@ -147,149 +141,173 @@
                 </div>
             </section>
 
-            <!-- Sessions View -->
             <section id="view-sessions" class="view-section hidden">
                 <header class="view-header">
-                    <h2>Active Sessions</h2>
-                    <p class="subtitle">Manage conversation histories across platforms</p>
+                    <h2>Sessions</h2>
+                    <p class="subtitle">Recent conversations across the web UI and connected apps</p>
                 </header>
                 <div class="glass-panel p-0">
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Session ID</th>
+                                <th>Session</th>
                                 <th>Platform</th>
                                 <th>User</th>
+                                <th>Messages</th>
                                 <th>Last Activity</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
                         <tbody id="sessions-list">
                             <tr>
-                                <td colspan="5" class="text-center p-4">Loading sessions...</td>
+                                <td colspan="6" class="text-center p-4">Loading sessions...</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </section>
 
-            <!-- Consents View -->
             <section id="view-consents" class="view-section hidden">
                 <header class="view-header">
-                    <h2>Pending Approvals</h2>
-                    <p class="subtitle">Review execution requests from Agent-02</p>
+                    <h2>Approvals</h2>
+                    <p class="subtitle">Review requests before Agent-02 runs sensitive actions</p>
                 </header>
                 <div id="consents-container" class="grid-list">
-                    <div class="empty-state">No pending requests.</div>
+                    <div class="empty-state">No pending approvals.</div>
                 </div>
             </section>
 
-            <!-- Logs View -->
             <section id="view-logs" class="view-section hidden">
                 <header class="view-header flex-between">
                     <div>
-                        <h2>System Logs</h2>
-                        <p class="subtitle">Historical system events</p>
+                        <h2>Logs</h2>
+                        <p class="subtitle">Server history and troubleshooting details</p>
                     </div>
                     <button id="btn-refresh-logs" class="btn btn-outline text-sm">Refresh</button>
                 </header>
                 <div class="terminal-container full-height glass-panel">
-                    <div id="history-log" class="terminal-output">
-                        Loading...
-                    </div>
+                    <div id="history-log" class="terminal-output">Loading...</div>
                 </div>
             </section>
 
-            <!-- Settings View -->
             <section id="view-settings" class="view-section hidden">
                 <header class="view-header">
-                    <h2>Configuration</h2>
-                    <p class="subtitle">System parameters and AI providers</p>
+                    <h2>Settings</h2>
+                    <p class="subtitle">Set up your AI provider and everyday controls without editing files</p>
                 </header>
-                <div class="settings-grid">
 
+                <div class="settings-grid">
                     <div class="settings-card glass-panel">
-                        <h3>AI Engine Setting</h3>
+                        <h3>AI Provider</h3>
                         <div class="form-group">
-                            <label>Provider</label>
+                            <label for="cfg-provider">Provider</label>
                             <select id="cfg-provider" class="form-control">
                                 <option value="openai">OpenAI</option>
-                                <option value="anthropic">Anthropic (Claude)</option>
+                                <option value="anthropic">Anthropic</option>
                                 <option value="deepseek">DeepSeek</option>
-                                <option value="gemini">Google Gemini</option>
+                                <option value="gemini">Gemini</option>
                                 <option value="groq">Groq</option>
                                 <option value="openrouter">OpenRouter</option>
                                 <option value="ollama">Ollama (Local)</option>
-                                <option value="llamacpp">Llama.cpp (Local)</option>
+                                <option value="llamacpp">llama.cpp (Local GGUF)</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Model Name</label>
+                            <label for="cfg-model">Model name</label>
                             <input type="text" id="cfg-model" class="form-control"
-                                placeholder="e.g. gpt-4o, claude-3-5-sonnet-20240620">
+                                placeholder="Example: gpt-4o, claude-sonnet, qwen2.5-coder">
                         </div>
                         <div class="form-group">
-                            <label>API Key / Path</label>
+                            <label for="cfg-baseurl">Base URL (optional)</label>
+                            <input type="text" id="cfg-baseurl" class="form-control"
+                                placeholder="Leave blank for the default endpoint">
+                        </div>
+                        <div class="form-group">
+                            <label for="cfg-local-model">Detected local GGUF models</label>
+                            <select id="cfg-local-model" class="form-control">
+                                <option value="">Scan in progress...</option>
+                            </select>
+                            <p class="text-xs text-muted mt-1">Uses files found in the shared `models` folder.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="cfg-apikey">API key or GGUF path</label>
                             <input type="text" id="cfg-apikey" class="form-control"
-                                placeholder="Enter Key or /path/to/model.gguf">
+                                placeholder="Paste your API key or choose a local model path">
                         </div>
                         <div class="form-group">
-                            <label>Base URL (Optional)</label>
-                            <input type="text" id="cfg-baseurl" class="form-control" placeholder="Custom API endpoint">
+                            <label for="cfg-system-prompt">Agent instructions</label>
+                            <textarea id="cfg-system-prompt" class="form-control form-textarea" rows="8"
+                                placeholder="Describe how Agent-02 should behave"></textarea>
                         </div>
                     </div>
 
                     <div class="settings-card glass-panel">
-                        <h3>Connectors & Security</h3>
+                        <h3>Connectors & Safety</h3>
                         <div class="form-group">
-                            <label>Telegram Bot Token</label>
-                            <input type="password" id="cfg-telegram" class="form-control"
-                                placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
-                        </div>
-                        <div class="form-group">
-                            <label>Discord Bot Token</label>
-                            <input type="password" id="cfg-discord" class="form-control"
-                                placeholder="MTEy... (Bot Token)">
-                        </div>
-                        <div class="form-group mt-4">
-                            <label class="flex items-center gap-2">
-                                <input type="checkbox" id="cfg-shell-enabled">
-                                Enable Shell Command Skill
+                            <label class="checkbox-row">
+                                <input type="checkbox" id="cfg-telegram-enabled">
+                                Enable Telegram bot
                             </label>
-                            <p class="text-xs text-muted mt-1">Requires explicit consent in UI before any command runs.
-                            </p>
+                            <input type="password" id="cfg-telegram" class="form-control mt-4"
+                                placeholder="Telegram bot token">
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-row">
+                                <input type="checkbox" id="cfg-discord-enabled">
+                                Enable Discord bot
+                            </label>
+                            <input type="password" id="cfg-discord" class="form-control mt-4"
+                                placeholder="Discord bot token">
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-row">
+                                <input type="checkbox" id="cfg-shell-enabled">
+                                Allow shell skill with manual approval
+                            </label>
+                            <p class="text-xs text-muted mt-1">Shell commands stay inside the workspace and still need
+                                your approval every time.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="cfg-workdir">Workspace folder</label>
+                            <input type="text" id="cfg-workdir" class="form-control"
+                                placeholder="Default workspace folder">
+                        </div>
+                        <div class="form-group">
+                            <label for="runtime-hint">Runtime info</label>
+                            <div id="runtime-hint" class="hint-card">
+                                Detecting local models and llama.cpp...
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="mt-6 flex justify-end">
+                <div class="mt-6 flex-end">
                     <button id="btn-save-settings" class="btn btn-primary glow-effect">
-                        Save & Apply Changes
+                        Save Settings
                     </button>
                 </div>
             </section>
         </main>
     </div>
 
-    <!-- Active Consent Modal Overlays -->
     <div id="modal-backdrop" class="modal-backdrop hidden"></div>
     <div id="consent-modal" class="modal-dialog hidden glass-panel">
         <div class="modal-header">
             <div class="modal-icon text-warning">⚠️</div>
-            <h3>Action Required</h3>
+            <h3>Approval Needed</h3>
         </div>
         <div class="modal-body">
-            <p>The AI Agent requests to execute a potentially sensitive action:</p>
+            <p>Agent-02 wants to run a sensitive action.</p>
             <div class="execution-card">
                 <div class="exec-title">Skill: <span id="modal-skill-name" class="text-highlight">shell_exec</span>
                 </div>
-                <pre id="modal-skill-args" class="exec-code">{"command": "ls -la"}</pre>
+                <pre id="modal-skill-args" class="exec-code">{}</pre>
             </div>
-            <p class="text-xs text-muted mt-4">Please review the parameters carefully before approving.</p>
+            <p class="text-xs text-muted mt-4">Check the action and parameters before approving.</p>
         </div>
         <div class="modal-footer">
-            <button id="modal-btn-deny" class="btn btn-outline text-danger">Deny Execution</button>
-            <button id="modal-btn-approve" class="btn btn-primary">Approve & Run</button>
+            <button id="modal-btn-deny" class="btn btn-outline text-danger">Deny</button>
+            <button id="modal-btn-approve" class="btn btn-primary">Approve</button>
         </div>
     </div>
 

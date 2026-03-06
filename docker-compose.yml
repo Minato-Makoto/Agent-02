@@ -4,7 +4,7 @@ services:
   agent02:
     build: .
     ports:
-      - "8080:8080"
+      - "8420:8420"
     volumes:
       - ./data:/app/data
     environment:

@@ -13,5 +13,5 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY package.json ./
 COPY ui/ ./ui/
 COPY data/instructions/ ./data/instructions/
-EXPOSE 8080
+EXPOSE 8420
 CMD ["node", "dist/index.js"]

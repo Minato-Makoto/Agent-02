@@ -1,78 +1,78 @@
-// ═══════════════════════════════════════════════════
-// Agent-02 — Web Skill (fetch + search, respects robots.txt)
-// ═══════════════════════════════════════════════════
-
+import { assertSafeHttpUrl } from '../utils/network.js';
 import { skillRegistry, type Skill } from './registry.js';
 
+const USER_AGENT = 'Agent-02/4.20 (Self-Hosted AI Gateway)';
+
 const webFetch: Skill = {
-    name: 'web_fetch',
-    description: 'Fetch content from a URL (text only, respects robots.txt)',
-    requiresConsent: false,
-    parameters: {
-        type: 'object',
-        properties: {
-            url: { type: 'string', description: 'URL to fetch' },
-        },
-        required: ['url'],
+  name: 'web_fetch',
+  description: 'Fetch text content from a public HTTP or HTTPS URL',
+  requiresConsent: false,
+  parameters: {
+    type: 'object',
+    properties: {
+      url: { type: 'string', description: 'URL to fetch' },
     },
-    async execute(args) {
-        const url = args.url;
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-            return 'Error: Only HTTP/HTTPS URLs are allowed.';
-        }
+    required: ['url'],
+  },
+  async execute(args) {
+    const url = await assertSafeHttpUrl(args.url);
+    const response = await fetch(url, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(15000),
+    });
 
-        const res = await fetch(url, {
-            headers: { 'User-Agent': 'Agent-02/2.0 (Self-Hosted AI Gateway; +https://github.com/yourname/agent-02)' },
-            signal: AbortSignal.timeout(15000),
-        });
+    if (!response.ok) {
+      return `HTTP ${response.status}: ${response.statusText}`;
+    }
 
-        if (!res.ok) return `HTTP ${res.status}: ${res.statusText}`;
+    const text = await response.text();
+    const cleaned = text
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
-        const text = await res.text();
-        // Strip HTML tags for cleaner output
-        const clean = text.replace(/<script[\s\S]*?<\/script>/gi, '')
-            .replace(/<style[\s\S]*?<\/style>/gi, '')
-            .replace(/<[^>]+>/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-
-        return clean.length > 8000 ? clean.slice(0, 8000) + '\n...(truncated)' : clean;
-    },
+    return cleaned.length > 8000 ? `${cleaned.slice(0, 8000)}\n...(truncated)` : cleaned;
+  },
 };
 
 const webSearch: Skill = {
-    name: 'web_search',
-    description: 'Search the web using DuckDuckGo (privacy-first)',
-    requiresConsent: false,
-    parameters: {
-        type: 'object',
-        properties: {
-            query: { type: 'string', description: 'Search query' },
-        },
-        required: ['query'],
+  name: 'web_search',
+  description: 'Search the web using DuckDuckGo',
+  requiresConsent: false,
+  parameters: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'Search query' },
     },
-    async execute(args) {
-        const q = encodeURIComponent(args.query);
-        const res = await fetch(`https://html.duckduckgo.com/html/?q=${q}`, {
-            headers: { 'User-Agent': 'Agent-02/2.0' },
-            signal: AbortSignal.timeout(10000),
-        });
+    required: ['query'],
+  },
+  async execute(args) {
+    const query = encodeURIComponent(args.query);
+    const response = await fetch(`https://html.duckduckgo.com/html/?q=${query}`, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(10000),
+    });
 
-        const html = await res.text();
-        const results: string[] = [];
-        const regex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-        let match;
-        while ((match = regex.exec(html)) && results.length < 8) {
-            const title = match[2].replace(/<[^>]+>/g, '').trim();
-            const href = match[1];
-            if (title && href) results.push(`- ${title}\n  ${href}`);
-        }
+    const html = await response.text();
+    const results: string[] = [];
+    const regex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+    let match: RegExpExecArray | null = null;
 
-        return results.length > 0 ? results.join('\n\n') : 'No results found.';
-    },
+    while ((match = regex.exec(html)) && results.length < 8) {
+      const title = match[2].replace(/<[^>]+>/g, '').trim();
+      const href = match[1];
+      if (title && href) {
+        results.push(`- ${title}\n  ${href}`);
+      }
+    }
+
+    return results.length > 0 ? results.join('\n\n') : 'No results found.';
+  },
 };
 
 export function registerWebSkills(): void {
-    skillRegistry.register(webFetch);
-    skillRegistry.register(webSearch);
+  skillRegistry.register(webFetch);
+  skillRegistry.register(webSearch);
 }

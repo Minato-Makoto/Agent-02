@@ -2,7 +2,7 @@
 // Agent-02 — Ollama Local Provider
 // ═══════════════════════════════════════════════════
 
-import type { LLMProvider, LLMMessage, LLMResult, ToolDefinition } from './provider.js';
+import type { LLMProvider, LLMMessage, LLMResult, ToolDefinition, LLMRequestOptions } from './provider.js';
 import { log } from '../gateway/eventbus.js';
 
 export class OllamaProvider implements LLMProvider {
@@ -17,10 +17,15 @@ export class OllamaProvider implements LLMProvider {
         log('info', 'llm', `Initialized ${this.name} at ${baseUrl}`);
     }
 
-    async chat(messages: LLMMessage[], tools?: ToolDefinition[]): Promise<LLMResult> {
+    async chat(messages: LLMMessage[], tools?: ToolDefinition[], options?: LLMRequestOptions): Promise<LLMResult> {
         const body: any = {
             model: this.model,
-            messages: messages.map(m => ({ role: m.role, content: m.content })),
+            messages: messages.map(m => ({
+                role: m.role,
+                content: m.content,
+                ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+                ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+            })),
             stream: false,
         };
 
@@ -32,6 +37,7 @@ export class OllamaProvider implements LLMProvider {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
+            signal: options?.signal,
         });
 
         if (!res.ok) {

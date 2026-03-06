@@ -1,118 +1,74 @@
-# ⚡ Agent-02 — Self-Hosted AI Gateway
+# Agent-02 v4.20
 
-**One click. Your AI. Your rules. 100% private & secure.**
+Private AI gateway for people who want their own assistant without editing code.
 
-Welcome to **Agent-02**! A secure, self-hosted gateway connecting state-of-the-art AI models (cloud or local) to your messaging platforms like WhatsApp, Telegram, and Discord—all running completely on your own machine.
+Agent-02 gives you one control panel to:
 
-[Read this in Vietnamese / Đọc bằng tiếng Việt](README_vi.md)
+- chat with a local or cloud AI model
+- keep history on your own machine
+- approve sensitive actions before they run
+- connect Telegram or Discord later if you want
 
----
+[Đọc bằng tiếng Việt](README_vi.md)
 
-## 🌟 Features
+## Start Here
 
-- **100% Privacy:** Your chat history, API keys, and settings live locally in the `data/` folder.
-- **Human-in-the-Loop Consent:** The AI cannot execute dangerous operations (like Shell commands) without your explicit approval via the Control UI.
-- **Easy Deployment:** Includes a single Windows `.bat` script for non-devs, and a `docker-compose.yml` for server hosting.
-- **Dynamic Personality:** Adjust the AI's behavior via a simple `system.md` file without touching code.
-- **Broad Model Support (2026):** Connects to OpenAI, Anthropic, Gemini, DeepSeek, or run 100% offline using Ollama and Llama.cpp.
+1. Install [Node.js 22 or newer](https://nodejs.org/).
+2. Open this folder.
+3. Double-click [`agent02.bat`](agent02.bat) on Windows.
+4. Wait for the browser to open `http://localhost:8420`.
 
----
+That is enough for the first run.
 
-## 📋 Prerequisites
+## Local AI Setup
 
-Depending on how you want to run Agent-02, you will need:
-- **For Windows (Easy Mode):** [Node.js](https://nodejs.org/) (Version 22+) installed on your computer.
-- **For Servers (Docker Mode):** Docker and Docker Compose installed.
+Agent-02 v4.20 automatically looks for:
 
----
+- `D:\AI Agent\llama.cpp`
+- `D:\AI Agent\models`
 
-## 🚀 Installation
+If your `.gguf` models are inside `D:\AI Agent\models`, the Settings screen will list them automatically.
 
-### Windows Easy Installation
-1. Download or clone this repository to your machine.
-2. Open the `agent-02` folder.
-3. Double-click the `agent02.bat` file.
-   - *On the first run, it will automatically install dependencies and start the server.*
+## Cloud AI Setup
 
-### Linux / Server Installation (Docker)
-```bash
-git clone https://github.com/yourname/agent-02.git
-cd agent-02
-docker-compose up -d
-```
+If you prefer OpenAI, Anthropic, DeepSeek, Gemini, Groq, or OpenRouter:
 
----
+1. Open **Settings**
+2. Choose the provider
+3. Paste your API key
+4. Save settings
 
-## 💻 Usage
+## What The Control Panel Does
 
-Once the server is running, open your web browser and go to:
-👉 **http://localhost:8080**
+- **Dashboard**: shows runtime health and recent events
+- **Chat**: talk to Agent-02 directly in the browser
+- **Sessions**: reopen older conversations
+- **Approvals**: allow or deny sensitive actions
+- **Logs**: view system history
+- **Settings**: change provider, model, workspace, and safety options
 
-This will open the **Control UI** where you can manage your AI.
+## Safety
 
-### 1. Connecting Platforms
-You can chat directly in the UI, or link it to messaging apps via the "Connectors" tab:
-- **Telegram:** Talk to [@BotFather](https://t.me/botfather) to create a bot and get a Token.
-- **Discord:** Create a bot at the [Discord Developer Portal](https://discord.com/developers).
-- **WhatsApp:** Set up an official app on [Meta for Developers](https://developers.facebook.com) for the WhatsApp Cloud API.
+Agent-02 was upgraded in v4.20 with:
 
-### 2. Choosing an AI Model
-In the **Settings** tab, choose your AI brain:
-- **Cloud AI:** Select provider (OpenAI, Anthropic, etc.) and paste your API Key.
-- **Offline AI:** Connect your local Ollama or point to a `.gguf` file using Llama.cpp for complete offline privacy.
+- config migration for older installs
+- stricter workspace path protection
+- safer web fetching that blocks local/private targets
+- shell execution locked to the workspace and still approval-based
+- UI and API contracts aligned so sessions, approvals, and settings behave correctly
 
-### 3. Setting AI Personality (System Prompt)
-Want the AI to act differently?
-1. Open `data/instructions/system.md` in any text editor.
-2. Write your custom behavior instructions.
-3. Save the file. The AI adopts the new personality immediately on the next chat session.
+## Your Data
 
-### 4. Sandboxed Skills
-Agent-02 includes tools the AI can use:
-- **Web Search:** Search the web privately via DuckDuckGo.
-- **File System:** Read/write files, rigidly restricted to the allowed workspace.
-- **Shell Commands:** Try to run computer commands—**always pauses and asks you to explicitly "Approve" or "Deny"**.
+Your local files live in `data/`.
 
----
+- `data/config.json`: saved settings and encrypted secrets
+- `data/agent02.db`: chat history and logs
+- `data/instructions/system.md`: Agent personality/instructions
+- `data/workspace/`: safe working folder for file and shell tools
 
-## 🏗️ Project Structure
+## Non-Technical Guide
 
-The codebase is structured in modern TypeScript running on Node.js:
+If you want a step-by-step guide without developer language, read:
 
-```
-agent-02/
-├── src/                    # Backend Source Code (TypeScript)
-│   ├── index.ts            # Entry CLI
-│   ├── api/                # Fastify REST & WebSocket servers
-│   ├── gateway/            # Event bus, router, session handling
-│   ├── adapters/           # Connectors (Telegram, Discord, WhatsApp)
-│   ├── llm/                # API wrappers for AI Providers
-│   └── skills/             # Sandboxed AI Tools
-├── ui/                     # Control UI
-│   └── dist/               # Compiled HTML/JS/CSS Interface
-├── data/                   # Your Local Data (Created on first run)
-│   ├── config.json         # AES-256 Encrypted API Keys
-│   ├── agent02.sqlite      # Chat history database
-│   └── instructions/       # system.md rules
-├── docker-compose.yml      # Deployment config
-├── install.sh              # Bash installer
-├── agent02.bat             # Windows runner
-├── package.json            # Node dependencies
-└── tsconfig.json           # TypeScript config
-```
-
----
-
-## 🛡️ Data Storage & Privacy
-
-All sensitive user data is stored safely within the `data/` directory. 
-- API Keys inside `config.json` are encrypted at rest using AES-256-GCM.
-- **To Backup/Migrate:** Simply copy your `data/` folder to your new machine or server.
-
----
-
-## 🤝 Contributing
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
-## 📝 License
-[MIT](https://choosealicense.com/licenses/mit/)
+- [Quick Start (English)](docs/QUICKSTART_en.md)
+- [Quick Start (Vietnamese)](docs/QUICKSTART_vi.md)

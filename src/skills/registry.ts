@@ -19,15 +19,19 @@ class SkillRegistryImpl {
 
     register(skill: Skill): void {
         const cfg = loadConfig();
-        const skillCfg = cfg.skills[skill.name];
+        const skillCfg = skill.name in cfg.skills
+            ? cfg.skills[skill.name as keyof typeof cfg.skills]
+            : undefined;
         if (skillCfg && !skillCfg.enabled) {
             log('info', 'skills', `Skill "${skill.name}" is disabled in config`);
             return;
         }
-        // Override consent from config if set
-        if (skillCfg) skill.requiresConsent = skillCfg.requiresConsent;
-        this.skills.set(skill.name, skill);
-        log('info', 'skills', `Registered skill: ${skill.name} (consent: ${skill.requiresConsent})`);
+        const normalizedSkill: Skill = {
+            ...skill,
+            requiresConsent: skillCfg ? skillCfg.requiresConsent : skill.requiresConsent,
+        };
+        this.skills.set(skill.name, normalizedSkill);
+        log('info', 'skills', `Registered skill: ${skill.name} (consent: ${normalizedSkill.requiresConsent})`);
     }
 
     getSkill(name: string): Skill | undefined {

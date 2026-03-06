@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════
 
 import Anthropic from '@anthropic-ai/sdk';
-import type { LLMProvider, LLMMessage, LLMResult, ToolDefinition } from './provider.js';
+import type { LLMProvider, LLMMessage, LLMResult, ToolDefinition, LLMRequestOptions } from './provider.js';
 import { log } from '../gateway/eventbus.js';
 
 export class AnthropicProvider implements LLMProvider {
@@ -18,11 +18,43 @@ export class AnthropicProvider implements LLMProvider {
         log('info', 'llm', `Initialized ${this.name}`);
     }
 
-    async chat(messages: LLMMessage[], tools?: ToolDefinition[]): Promise<LLMResult> {
+    async chat(messages: LLMMessage[], tools?: ToolDefinition[], options?: LLMRequestOptions): Promise<LLMResult> {
         const systemMsg = messages.find(m => m.role === 'system')?.content || '';
         const chatMsgs = messages
             .filter(m => m.role !== 'system')
-            .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+            .map((m) => {
+                if (m.role === 'assistant') {
+                    const blocks: any[] = [];
+                    if (m.content?.trim()) {
+                        blocks.push({ type: 'text', text: m.content });
+                    }
+
+                    for (const toolCall of m.tool_calls ?? []) {
+                        blocks.push({
+                            type: 'tool_use',
+                            id: toolCall.id,
+                            name: toolCall.name,
+                            input: toolCall.args ?? {},
+                        });
+                    }
+
+                    return { role: 'assistant' as const, content: blocks };
+                }
+
+                if (m.role === 'tool') {
+                    return {
+                        role: 'user' as const,
+                        content: [{
+                            type: 'tool_result',
+                            tool_use_id: m.tool_call_id || '',
+                            content: m.content,
+                        }],
+                    };
+                }
+
+                return { role: 'user' as const, content: m.content };
+            })
+            .filter((message) => Array.isArray(message.content) ? message.content.length > 0 : true);
 
         const params: any = {
             model: this.model,
@@ -39,7 +71,7 @@ export class AnthropicProvider implements LLMProvider {
             }));
         }
 
-        const res = await this.client.messages.create(params);
+        const res = await this.client.messages.create(params, { signal: options?.signal } as any);
         let content = '';
         const toolCalls: any[] = [];
 

@@ -1,181 +1,359 @@
-// ═══════════════════════════════════════════════════
-// Agent-02 — Fastify API Server + WebSocket
-// ═══════════════════════════════════════════════════
-
-import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
+import Fastify from 'fastify';
+import { APP_VERSION } from '../constants.js';
+import { getSystemPrompt, loadConfig, saveConfig, type AppConfig, type ConnectorConfig } from '../config.js';
+import { addLog, getAllSessions, getHistory, getPendingConsents, getRecentLogs } from '../db.js';
 import { bus, log } from '../gateway/eventbus.js';
-import { loadConfig, saveConfig } from '../config.js';
-import { addLog, getRecentLogs, getAllSessions, getHistory, getPendingConsents } from '../db.js';
-import { resolveConsentRequest } from '../gateway/router.js';
+import { resolveConsentRequest, streamChat } from '../gateway/router.js';
+import { discoverLocalModels } from '../runtime/local_models.js';
+import { freePortIfOccupied } from '../runtime/ports.js';
+import { LLAMA_CPP_DIR, LLAMA_SERVER_CANDIDATES, MODELS_DIR, UI_DIST_DIR } from '../paths.js';
+import { resetProvider, shutdownProvider } from '../llm/provider.js';
 import { WhatsAppCloudAdapter } from '../adapters/whatsapp_cloud.js';
+import type { FastifyInstance } from 'fastify';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+function maskSecret(value: string, visibleTail = 4): string {
+  if (!value) return '';
+  if (value.length <= visibleTail) return '*'.repeat(Math.max(4, value.length));
+  return `${'*'.repeat(Math.max(4, value.length - visibleTail))}${value.slice(-visibleTail)}`;
+}
 
-export async function startApiServer(whatsappAdapter?: WhatsAppCloudAdapter): Promise<void> {
-    const cfg = loadConfig();
-    const app = Fastify({ logger: false });
+function toUiConnector(config: ConnectorConfig) {
+  return {
+    enabled: config.enabled,
+    tokenMasked: maskSecret(config.token),
+    phoneNumberId: config.phoneNumberId,
+    accessTokenMasked: maskSecret(config.accessToken),
+    verifyTokenMasked: maskSecret(config.verifyToken),
+    appSecretMasked: maskSecret(config.appSecret),
+  };
+}
 
-    await app.register(fastifyWebsocket);
+function toUiConfig(config: AppConfig) {
+  return {
+    version: APP_VERSION,
+    llm: {
+      provider: config.llm.provider,
+      model: config.llm.model,
+      baseUrl: config.llm.baseUrl,
+      apiKeyMasked: maskSecret(config.llm.apiKey),
+      ggufPath: config.llm.ggufPath,
+      systemPrompt: getSystemPrompt(),
+      requestTimeoutSec: config.llm.requestTimeoutSec,
+      maxTokens: config.llm.maxTokens,
+      temperature: config.llm.temperature,
+    },
+    connectors: {
+      telegram: toUiConnector(config.connectors.telegram),
+      discord: toUiConnector(config.connectors.discord),
+      whatsapp: toUiConnector(config.connectors.whatsapp),
+    },
+    skills: {
+      filesystemEnabled: config.skills.filesystem.enabled,
+      webEnabled: config.skills.web.enabled,
+      shellEnabled: config.skills.shell.enabled,
+      shellRequiresConsent: config.skills.shell.requiresConsent,
+    },
+    security: {
+      allowedWorkDir: config.security.allowedWorkDir,
+      consentRequired: config.security.consentRequired,
+    },
+  };
+}
 
-    // Serve React UI static files
-    const uiPath = path.join(__dirname, '..', '..', 'ui', 'dist');
-    try {
-        await app.register(fastifyStatic, { root: uiPath, prefix: '/' });
-    } catch {
-        log('warn', 'api', `UI not built at ${uiPath}. Run 'npm run ui:build' first.`);
+function buildConfigPatch(payload: any): Partial<AppConfig> {
+  const patch: Partial<AppConfig> = {};
+
+  if (payload?.llm) {
+    patch.llm = {} as AppConfig['llm'];
+    if (typeof payload.llm.provider === 'string') patch.llm.provider = payload.llm.provider;
+    if (typeof payload.llm.model === 'string') patch.llm.model = payload.llm.model;
+    if (typeof payload.llm.baseUrl === 'string') patch.llm.baseUrl = payload.llm.baseUrl;
+    if (typeof payload.llm.apiKey === 'string') patch.llm.apiKey = payload.llm.apiKey;
+    if (typeof payload.llm.ggufPath === 'string') patch.llm.ggufPath = payload.llm.ggufPath;
+    if (typeof payload.llm.systemPrompt === 'string') patch.llm.systemPrompt = payload.llm.systemPrompt;
+    if (typeof payload.llm.requestTimeoutSec === 'number') patch.llm.requestTimeoutSec = payload.llm.requestTimeoutSec;
+    if (typeof payload.llm.maxTokens === 'number') patch.llm.maxTokens = payload.llm.maxTokens;
+    if (typeof payload.llm.temperature === 'number') patch.llm.temperature = payload.llm.temperature;
+  }
+
+  if (payload?.connectors) {
+    patch.connectors = {} as AppConfig['connectors'];
+    for (const connectorName of ['telegram', 'discord', 'whatsapp'] as const) {
+      const rawConnector = payload.connectors[connectorName];
+      if (!rawConnector) continue;
+
+      patch.connectors[connectorName] = {} as ConnectorConfig;
+      if (typeof rawConnector.enabled === 'boolean') patch.connectors[connectorName].enabled = rawConnector.enabled;
+      if (typeof rawConnector.token === 'string') patch.connectors[connectorName].token = rawConnector.token;
+      if (typeof rawConnector.phoneNumberId === 'string') patch.connectors[connectorName].phoneNumberId = rawConnector.phoneNumberId;
+      if (typeof rawConnector.accessToken === 'string') patch.connectors[connectorName].accessToken = rawConnector.accessToken;
+      if (typeof rawConnector.verifyToken === 'string') patch.connectors[connectorName].verifyToken = rawConnector.verifyToken;
+      if (typeof rawConnector.appSecret === 'string') patch.connectors[connectorName].appSecret = rawConnector.appSecret;
+    }
+  }
+
+  if (payload?.skills) {
+    patch.skills = {} as AppConfig['skills'];
+
+    const shellEnabled = typeof payload.skills.shellEnabled === 'boolean'
+      ? payload.skills.shellEnabled
+      : typeof payload.skills.shell === 'boolean'
+        ? payload.skills.shell
+        : undefined;
+
+    if (typeof payload.skills.filesystemEnabled === 'boolean') {
+      patch.skills.filesystem = {
+        enabled: payload.skills.filesystemEnabled,
+        requiresConsent: false,
+      };
     }
 
-    // ── REST API ──
+    if (typeof payload.skills.webEnabled === 'boolean') {
+      patch.skills.web = {
+        enabled: payload.skills.webEnabled,
+        requiresConsent: false,
+      };
+    }
 
-    app.get('/api/status', async () => ({
-        status: 'running',
-        version: '2.0.0',
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        llm: { provider: cfg.llm.provider, model: cfg.llm.model },
+    if (typeof shellEnabled === 'boolean') {
+      patch.skills.shell = {
+        enabled: shellEnabled,
+        requiresConsent: true,
+      };
+    }
+  }
+
+  if (payload?.security) {
+    patch.security = {} as AppConfig['security'];
+    if (typeof payload.security.allowedWorkDir === 'string') patch.security.allowedWorkDir = payload.security.allowedWorkDir;
+    if (typeof payload.security.consentRequired === 'boolean') patch.security.consentRequired = payload.security.consentRequired;
+  }
+
+  return patch;
+}
+
+export interface ApiServerHandle {
+  app: FastifyInstance;
+  close: () => Promise<void>;
+}
+
+export async function startApiServer(whatsappAdapter?: WhatsAppCloudAdapter): Promise<ApiServerHandle> {
+  const cfg = loadConfig();
+  const app = Fastify({
+    logger: false,
+    bodyLimit: 1024 * 1024,
+  });
+
+  await app.register(fastifyWebsocket);
+
+  try {
+    await app.register(fastifyStatic, { root: UI_DIST_DIR, prefix: '/' });
+  } catch {
+    log('warn', 'api', `UI not built at ${UI_DIST_DIR}.`);
+  }
+
+  app.get('/api/status', async () => {
+    const localModels = await discoverLocalModels(20);
+    const current = loadConfig();
+
+    return {
+      status: 'running',
+      version: APP_VERSION,
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      llm: {
+        provider: current.llm.provider,
+        model: current.llm.model,
+      },
+      runtime: {
+        workspace: current.security.allowedWorkDir,
+        llamaCppDir: LLAMA_CPP_DIR,
+        modelsDir: MODELS_DIR,
+        localModelCount: localModels.length,
+      },
+    };
+  });
+
+  app.get('/api/runtime', async () => ({
+    llamaCppDir: LLAMA_CPP_DIR,
+    llamaServerCandidates: LLAMA_SERVER_CANDIDATES,
+    modelsDir: MODELS_DIR,
+    localModels: await discoverLocalModels(),
+    systemPromptPath: 'data/instructions/system.md',
+  }));
+
+  app.get('/api/config', async () => toUiConfig(loadConfig()));
+
+  app.post('/api/config', async (req) => {
+    const patch = buildConfigPatch(req.body);
+    await shutdownProvider();
+    const next = saveConfig(patch);
+    resetProvider();
+    return { ok: true, config: toUiConfig(next) };
+  });
+
+  app.get('/api/sessions', async () =>
+    getAllSessions().map((row: any) => ({
+      id: row.id,
+      platform: row.platform,
+      userId: row.platform_uid,
+      displayName: row.display_name,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      messageCount: Number(row.message_count || 0),
+    })),
+  );
+
+  app.get('/api/sessions/:id/messages', async (req) => {
+    const { id } = req.params as { id: string };
+    return getHistory(id, 100).map((row: any) => ({
+      role: row.role,
+      content: row.content,
+      toolCalls: row.tool_calls ? JSON.parse(row.tool_calls) : undefined,
+      toolCallId: row.tool_call_id || undefined,
     }));
+  });
 
-    app.get('/api/config', async () => {
-        const c = loadConfig();
-        // Mask secrets
-        return {
-            ...c,
-            llm: { ...c.llm, apiKey: c.llm.apiKey ? '****' + c.llm.apiKey.slice(-4) : '' },
-            connectors: Object.fromEntries(
-                Object.entries(c.connectors).map(([k, v]) => [k, {
-                    ...v,
-                    token: v.token ? '****' : '',
-                    accessToken: v.accessToken ? '****' : '',
-                    appSecret: v.appSecret ? '****' : '',
-                }])
-            ),
-        };
+  app.get('/api/logs', async (req) => {
+    const query = req.query as { limit?: string };
+    return getRecentLogs(Number(query.limit) || 100);
+  });
+
+  app.get('/api/consents', async () =>
+    getPendingConsents().map((row: any) => ({
+      id: row.id,
+      sessionId: row.session_id,
+      skillName: row.skill_name,
+      args: (() => {
+        try {
+          return JSON.parse(row.args);
+        } catch {
+          return {};
+        }
+      })(),
+      createdAt: row.created_at,
+    })),
+  );
+
+  app.post('/api/consents/:id', async (req) => {
+    const { id } = req.params as { id: string };
+    const body = (req.body ?? {}) as { approved?: boolean };
+    resolveConsentRequest(id, body.approved === true);
+    return { ok: true };
+  });
+
+  if (whatsappAdapter) {
+    app.get('/api/webhooks/whatsapp', async (req, reply) => {
+      const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query as any;
+      const result = whatsappAdapter.verifyWebhook(mode, token, challenge);
+      if (result) return reply.send(result);
+      return reply.code(403).send('Verification failed');
     });
 
-    app.post('/api/config', async (req) => {
-        const updates = req.body as any;
-        saveConfig(updates);
-        return { ok: true };
+    app.post('/api/webhooks/whatsapp', async (req, reply) => {
+      const sig = req.headers['x-hub-signature-256'] as string;
+      const rawBody = JSON.stringify(req.body);
+      if (sig && !whatsappAdapter.validateSignature(rawBody, sig)) {
+        return reply.code(401).send('Invalid signature');
+      }
+      whatsappAdapter.handleWebhook(req.body);
+      return reply.code(200).send('OK');
     });
+  }
 
-    app.get('/api/sessions', async () => getAllSessions());
-
-    app.get('/api/sessions/:id/messages', async (req) => {
-        const { id } = req.params as any;
-        return getHistory(id, 100);
-    });
-
-    app.get('/api/logs', async (req) => {
-        const { limit } = req.query as any;
-        return getRecentLogs(Number(limit) || 100);
-    });
-
-    // ── Consent API ──
-    app.get('/api/consents', async () => getPendingConsents());
-
-    app.post('/api/consents/:id', async (req) => {
-        const { id } = req.params as any;
-        const { approved } = req.body as any;
-        resolveConsentRequest(id, approved === true);
-        return { ok: true };
-    });
-
-    // ── WhatsApp Webhook ──
-    if (whatsappAdapter) {
-        app.get('/api/webhooks/whatsapp', async (req, reply) => {
-            const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query as any;
-            const result = whatsappAdapter.verifyWebhook(mode, token, challenge);
-            if (result) return reply.send(result);
-            return reply.code(403).send('Verification failed');
-        });
-
-        app.post('/api/webhooks/whatsapp', async (req, reply) => {
-            const sig = req.headers['x-hub-signature-256'] as string;
-            const rawBody = JSON.stringify(req.body);
-            if (sig && !whatsappAdapter.validateSignature(rawBody, sig)) {
-                return reply.code(401).send('Invalid signature');
-            }
-            whatsappAdapter.handleWebhook(req.body);
-            return reply.code(200).send('OK');
-        });
-    }
-
-    // ── WebSocket ──
+  app.get('/ws', { websocket: true }, (socket) => {
+    const listeners = new Map<string, (data: any) => void>();
     const activeStreams = new Map<string, AbortController>();
 
-    app.get('/ws', { websocket: true }, (socket) => {
-        const handler = (event: string) => (data: any) => {
-            try {
-                socket.send(JSON.stringify({ type: event, data, timestamp: Date.now() }));
-            } catch { }
-        };
+    for (const eventName of ['message:in', 'message:out', 'tool:call', 'tool:result', 'consent:request', 'consent:resolve', 'log', 'error'] as const) {
+      const handler = (data: any) => {
+        try {
+          socket.send(JSON.stringify({ type: eventName, data, timestamp: Date.now() }));
+        } catch {
+          // Ignore socket errors; close handler below will clean up listeners.
+        }
+      };
 
-        const events = ['message:in', 'message:out', 'tool:call', 'tool:result', 'consent:request', 'consent:resolve', 'log', 'error'] as const;
-        for (const ev of events) {
-            bus.on(ev, handler(ev));
+      listeners.set(eventName, handler);
+      bus.on(eventName, handler);
+    }
+
+    socket.on('message', async (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        if (msg.type === 'chat') {
+          const sessionId = msg.sessionId || `webui_${Date.now()}`;
+          const controller = new AbortController();
+          activeStreams.set(sessionId, controller);
+
+          await streamChat(
+            {
+              id: `msg_${Date.now()}`,
+              sessionId,
+              platform: 'webui',
+              userId: sessionId,
+              userName: 'Web User',
+              content: String(msg.text || ''),
+              timestamp: Date.now(),
+            },
+            (event) => {
+              socket.send(JSON.stringify({ type: 'chat:stream', data: { sessionId, ...event } }));
+            },
+            controller.signal,
+          );
+
+          activeStreams.delete(sessionId);
         }
 
-        socket.on('message', async (raw) => {
-            try {
-                const msg = JSON.parse(raw.toString());
-                if (msg.type === 'chat') {
-                    const { streamChat } = await import('../gateway/router.js');
-                    const sessionId = msg.sessionId || `webui_${Date.now()}`;
-
-                    const controller = new AbortController();
-                    activeStreams.set(sessionId, controller);
-
-                    await streamChat(
-                        {
-                            id: `msg_${Date.now()}`,
-                            sessionId,
-                            platform: 'webui',
-                            userId: sessionId, // Bypasses the single "admin" constraint, allowing multiple sessions
-                            userName: 'Admin',
-                            content: msg.text,
-                            timestamp: Date.now(),
-                        },
-                        (token: string, done: boolean) => {
-                            socket.send(JSON.stringify({ type: 'chat:stream', data: { token, done } }));
-                        },
-                        controller.signal
-                    );
-
-                    activeStreams.delete(sessionId);
-                } else if (msg.type === 'stop') {
-                    const sessionId = msg.sessionId;
-                    if (sessionId && activeStreams.has(sessionId)) {
-                        activeStreams.get(sessionId)?.abort();
-                        activeStreams.delete(sessionId);
-                        log('info', 'api', `Stream aborted by user for session ${sessionId}`);
-                    }
-                }
-            } catch (err) {
-                log('error', 'api', `WS message error: ${err}`);
-            }
-        });
-
-        socket.on('close', () => {
-            for (const ev of events) {
-                bus.removeListener(ev, handler(ev));
-            }
-        });
+        if (msg.type === 'stop') {
+          const sessionId = String(msg.sessionId || '');
+          activeStreams.get(sessionId)?.abort();
+          activeStreams.delete(sessionId);
+        }
+      } catch (err: any) {
+        log('error', 'api', `WS message error: ${err.message}`);
+        try {
+          socket.send(JSON.stringify({ type: 'chat:error', error: err.message }));
+        } catch {
+          // Ignore send failures on broken sockets.
+        }
+      }
     });
 
-    // ── SPA fallback ──
-    app.setNotFoundHandler(async (req, reply) => {
-        if (req.url.startsWith('/api/')) return reply.code(404).send({ error: 'Not found' });
-        return reply.sendFile('index.html');
+    socket.on('close', () => {
+      for (const controller of activeStreams.values()) {
+        controller.abort();
+      }
+
+      for (const [eventName, handler] of listeners.entries()) {
+        bus.removeListener(eventName, handler);
+      }
     });
+  });
 
-    // ── Log events to DB ──
-    bus.onEvent('log', (data) => addLog(data.level, data.source, data.message, data.data));
-    bus.onEvent('error', (data) => addLog('error', data.source, data.error));
+  app.setNotFoundHandler(async (req, reply) => {
+    if (req.url.startsWith('/api/')) {
+      return reply.code(404).send({ error: 'Not found' });
+    }
 
-    await app.listen({ port: cfg.server.port, host: cfg.server.host });
-    log('info', 'api', `Server listening on http://${cfg.server.host}:${cfg.server.port}`);
+    return reply.sendFile('index.html');
+  });
+
+  bus.onEvent('log', (data) => addLog(data.level, data.source, data.message, data.data));
+  bus.onEvent('error', (data) => addLog('error', data.source, data.error));
+
+  const killedPids = await freePortIfOccupied(cfg.server.port);
+  if (killedPids.length > 0) {
+    log('warn', 'api', `Port ${cfg.server.port} was busy. Stopped process(es): ${killedPids.join(', ')}`);
+  }
+  await app.listen({ port: cfg.server.port, host: cfg.server.host });
+  log('info', 'api', `Server listening on http://${cfg.server.host}:${cfg.server.port}`);
+  return {
+    app,
+    close: async () => {
+      await app.close();
+    },
+  };
 }
