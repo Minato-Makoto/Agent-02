@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentforge"
+version = "2.1.0"
+description = "Windows-first local/remote AI agent runtime with structured tool-calling."
+requires-python = ">=3.10"
+dependencies = [
+  "rich==14.2.0",
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.30.0",
+  "requests>=2.31.0",
+  "discord.py>=2.5.2",
+  "beautifulsoup4==4.14.3",
+  "playwright==1.58.0",
+  "pyautogui==0.9.54",
+  "python-socketio==5.16.1",
+  "websocket-client==1.9.0",
+  "pyyaml==6.0.3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.0.1",
+  "ruff==0.15.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["src/tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["F"]
+ignore = ["F401", "F541", "F841"]

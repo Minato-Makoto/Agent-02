@@ -1,0 +1,29 @@
+@echo off
+REM Local-only overrides for run.bat.
+REM Copy this file to run.local.bat and edit the values for your machine.
+
+REM Default gateway-first layout
+set "SERVER_EXE=D:\AI Agent\llama.cpp\llama-server.exe"
+set "MODELS_DIR=D:\AI Agent\models"
+set "WORKSPACE=D:\AI Agent\Agent-02\workspace"
+set "GATEWAY_HOST=127.0.0.1"
+set "GATEWAY_PORT=18789"
+set "HOST=127.0.0.1"
+set "PORT=8080"
+
+REM WebUI behavior
+REM set "AUTO_OPEN_BROWSER=0"
+REM set "ALLOW_REMOTE_ADMIN=1"
+
+REM Optional inference overrides
+REM Default runtime leaves reasoning effort blank and disables request-per-minute caps
+REM set "REASONING_EFFORT=medium"
+REM set "MAX_REQUESTS_PER_MINUTE=30"
+
+REM Optional channel token fallbacks
+REM set "TELEGRAM_BOT_TOKEN=..."
+REM set "DISCORD_BOT_TOKEN=..."
+REM set "ZALO_BOT_TOKEN=..."
+
+REM Extra CLI flags passed through to `python -m agentforge.cli gateway run`
+REM set "EXTRA_ARGS=--verbose"

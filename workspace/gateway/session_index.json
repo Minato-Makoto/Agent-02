@@ -1,0 +1,30 @@
+{
+  "sessions": [
+    {
+      "session_key": "main",
+      "session_id": "22dd5524",
+      "channel": "webchat",
+      "peer_type": "dm",
+      "peer_id": "main",
+      "account_id": "default",
+      "title": "webchat:main",
+      "selected_model_id": "Qwen3-4B-Q4_K_M",
+      "last_route": {},
+      "created_at": 1773237496.3778183,
+      "updated_at": 1773237551.218352
+    },
+    {
+      "session_key": "agent:main:main",
+      "session_id": "1d85a80d",
+      "channel": "webchat",
+      "peer_type": "dm",
+      "peer_id": "main",
+      "account_id": "default",
+      "title": "Main",
+      "selected_model_id": "Qwen3.5-4B-Q4_K_M",
+      "last_route": {},
+      "created_at": 1773237493.8999622,
+      "updated_at": 1773238863.9864967
+    }
+  ]
+}
