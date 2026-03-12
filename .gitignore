@@ -1,53 +1,8 @@
-# Python
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Runtime/session artifacts
-workspace/sessions/*.json
-workspace/sessions/
-workspace/screenshots/
-workspace/memory/
-workspace/logs/
-*.log
-
-# Local runtime binaries/models
-llama-server/*
-!llama-server/.gitkeep
-*.gguf
-
-# Local env files
-.env
-.env.*
-!.env.example
 run.local.bat
-
-# Reference repos (local development only)
-reference/
-skills ref/
-
-# IDE/editor
-.vscode/
-.idea/
-*.swp
-
-# OS files
-Thumbs.db
-.DS_Store
-
-# Unused/Dummy Development Files
-dfd_flat.html
-.ui_dummy_preview
-ui_dummy_preview
-ui_dummy_preview.bat
-simulate_context.bat
-simulate_context.py
-root-agents.md
-CHANGELOG.md
+workspace/*
+!workspace/IDENTITY.md
+!workspace/SOUL.md
+!workspace/AGENT.md
+!workspace/USER.md
+*.log
+__pycache__/

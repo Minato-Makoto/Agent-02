@@ -1,6 +1,3 @@
-"""AgentForge CLI package metadata."""
+"""Minimal Agent-02 launcher package."""
 
-__title__ = "agentforge"
-__version__ = "2.1.0"
-
-__all__ = ["__title__", "__version__"]
+__all__ = []

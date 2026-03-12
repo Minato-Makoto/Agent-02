@@ -1,67 +1,45 @@
-# Blueprint
+# Blueprint EN
 
-## Current Runtime
+## Repository State
 
-Agent-02 currently has one runtime surface only:
+This repository is intentionally reduced to a minimal scaffold.
 
-```mermaid
-flowchart LR
-    A["run.bat"] --> B["llama-server.exe"]
-    B --> C["Llama WebUI"]
-    B --> D["/health"]
-    B --> E["/models"]
-    B --> F["/v1/chat/completions"]
-```
+It now retains only:
+- a thin launcher
+- agent identity bootstrap markdown files
+- skill and tool placeholder directories
+- docs and TODO anchors
 
-## Ownership Rules
+## Baseline Ownership
 
-`llama-server` owns:
+`llama-server.exe` owns:
+- model loading
 - model selection
-- chat completions
-- streaming
-- attachments
-- conversation UX
-- llama WebUI
+- chat UX
+- WebUI UX
 
-Agent-02 must not currently own:
-- a duplicate WebUI
-- a custom chat submit protocol
-- a custom session model for chat
-- a model selection layer on top of llama
-- a gateway that sits between browser chat and llama
+Agent-02 owns none of the above.
 
-## Supported Product Surface
+## What The Retained Skeleton Means
 
-Supported now:
-- Windows launcher via `run.bat`
-- local llama-server boot
-- llama WebUI as the default UI
+- launcher: operational anchor only
+- workspace bootstrap markdown files: identity anchor only
+- skills: future capability inventory anchor
+- tools: future capability inventory anchor
+- docs: source of truth for rebuild direction
 
-Not supported now:
-- custom Agent-02 browser UI
-- custom Agent-02 admin API
-- custom Agent-02 chat/session orchestration
+## Non-Negotiable Constraints
 
-## Workspace State
+- do not duplicate the llama WebUI
+- do not reintroduce a second chat UI
+- do not wrap model choice in Agent-02
+- do not rebuild a gateway that re-owns llama behavior
 
-The workspace remains as a future rebuild anchor.
+## Valid Future Work
 
-Current bootstrap files:
-- `IDENTITY.md`
-- `SOUL.md`
-- `AGENT.md`
-- `USER.md`
-
-These files are preserved, but no rebuilt autonomy runtime is wired to them yet.
-
-## Build Rule For Future Work
-
-Any future feature must pass this test first:
-
-1. Does standalone llama already handle it?
-2. If yes, Agent-02 must not duplicate it.
-3. If no, it belongs in the product diff roadmap.
-
-## Roadmap Anchor
-
-Future implementation work must start from `docs/TODO_RUNTIME_DIFF.md`.
+- workspace identity and bootstrap handling
+- autonomy runtime
+- durable memory beyond context window
+- channel adapters
+- platform access
+- product surfaces llama does not already cover

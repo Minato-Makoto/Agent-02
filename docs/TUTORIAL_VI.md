@@ -1,53 +1,36 @@
-# Tutorial
+# Tutorial VI
 
-## 1. Hien Tai Co Gi
+## Hien Tai Co The Lam Gi
 
-Agent-02 hien tai chi lam mot viec:
-- khoi dong `llama-server.exe`
+Ban co the dung launcher mong trong repo nay, hoac tu chay `llama-server.exe`.
 
-UI mac dinh la llama WebUI do chinh process nay serve.
+Launcher chi co mot viec: start llama-server. No khong so huu runtime behavior ngoai viec do.
 
-## 2. Cac Buoc Chay
+## Nhung Gi Chua Co
 
-1. Dat file GGUF vao thu muc `models/`.
-2. Copy `run.local.bat.example` thanh `run.local.bat` neu can override theo may.
-3. Chay `run.bat`.
+- chua co UI rieng cua Agent-02
+- chua co runtime rieng
+- chua co skill duoc implement
+- chua co tool duoc implement
 
-URL mac dinh:
-- WebUI: `http://127.0.0.1:8080`
-- Health: `http://127.0.0.1:8080/health`
-- Models: `http://127.0.0.1:8080/models`
+## Nhung Gi Duoc Co Y Giu Lai
 
-## 3. Agent-02 Khong Them Gi O Wave Nay
+- `workspace/IDENTITY.md`
+- `workspace/SOUL.md`
+- `workspace/AGENT.md`
+- `workspace/USER.md`
 
-Release nay khong them:
-- WebUI rieng
-- gateway rieng
-- lop chat session rieng
-- lop model picker de len tren llama
+Do la cac moc bootstrap va dinh danh cho wave build lai sau.
 
-Neu standalone llama da co san tinh nang thi Agent-02 co y khong duplicate.
+## Y Nghia Cua Cac Thu Muc Placeholder
 
-## 4. Local Overrides
+- `skills/` la moc inventory cho tuong lai
+- `tools/` la moc inventory cho tuong lai
 
-Dung `run.local.bat` cho cac thay doi theo may, vi du:
-- `SERVER_EXE`
-- `MODELS_DIR`
-- `HOST`
-- `PORT`
-- `MODELS_MAX`
-- `CTX_SIZE`
-- `GPU_LAYERS`
+Do chi la TODO scaffold, khong phai capability da ship.
 
-## 5. Troubleshooting
+## Thu Tu Nen Doc Truoc Khi Build
 
-Neu khoi dong loi:
-- doc output cua launcher o `Reason`, `Command`, va `llama-server stderr (tail)`
-- kiem tra `HOST:PORT` co dang bi process khac chiem hay khong
-- xac minh `SERVER_EXE` va `MODELS_DIR`
-
-## 6. Buoc Tiep Theo
-
-Cong viec tiep theo khong bat dau tu viec duplicate UI.
-
-No phai bat dau tu TODO roadmap trong `docs/TODO_RUNTIME_DIFF.md`, va chi danh cho nhung phan standalone llama chua so huu.
+1. `README.md`
+2. `docs/BLUEPRINT_VI.md`
+3. `docs/TODO_RUNTIME_DIFF.md`

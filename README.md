@@ -1,58 +1,69 @@
 # Agent-02
 
-Agent-02 is currently a Windows launcher scaffold for `llama-server.exe`.
+Agent-02 is now a minimal skeleton repository.
 
-Current release status:
-- the default and only shipped UI is the WebUI served by `llama-server`
-- Agent-02 does not ship a custom browser UI
-- Agent-02 does not ship a gateway API that re-owns chat, model, or session flow
+Current state:
+- a thin launcher that starts `llama-server`
+- no shipped custom runtime beyond that launcher
+- no shipped custom UI
+- no shipped skill or tool implementations
+- retained identity bootstrap markdown files
+- docs and TODO anchors for future rebuild work
 
-## What `run.bat` Does
+## What Remains
 
-`run.bat` starts `llama-server.exe` directly in router mode and leaves the full chat/model UX to llama itself.
+Minimal retained anchors:
+- `run.bat`
+- `run.local.bat.example`
+- `src/agentforge/cli.py`
+- `workspace/IDENTITY.md`
+- `workspace/SOUL.md`
+- `workspace/AGENT.md`
+- `workspace/USER.md`
+- `skills/`
+- `tools/`
+- `docs/`
 
-Default local URLs:
-- WebUI: `http://127.0.0.1:8080`
-- Health: `http://127.0.0.1:8080/health`
-- Models: `http://127.0.0.1:8080/models`
-- OpenAI-compatible chat: `http://127.0.0.1:8080/v1/chat/completions`
+## Current Rule
 
-## What Is Not Shipped
+`llama-server` owns runtime and UI behavior.
 
-This repo intentionally does not ship:
-- `/webchat`
-- a duplicated copy of the llama WebUI
-- an Agent-02 gateway layer for model selection, chat submit, or managed chat sessions
+Agent-02 must not rebuild:
+- llama WebUI
+- model selection
+- chat flow
+- conversation UX
 
-## Local Overrides
+## What The Launcher Is Allowed To Do
 
-Machine-specific overrides belong in `run.local.bat`, copied from `run.local.bat.example`.
+Only:
+- resolve local paths
+- create workspace directory if needed
+- start `llama-server`
 
-Typical overrides:
-- `SERVER_EXE`
-- `MODELS_DIR`
-- `HOST`
-- `PORT`
-- `MODELS_MAX`
-- `CTX_SIZE`
-- `GPU_LAYERS`
+It must not own chat, model, session, or policy semantics.
 
-## Workspace
+## Identity Bootstrap Files
 
-The workspace directory is still created and kept because later rebuild waves will need project identity and runtime state there.
+The following markdown files are intentionally retained as future runtime anchors:
+- `workspace/IDENTITY.md`
+- `workspace/SOUL.md`
+- `workspace/AGENT.md`
+- `workspace/USER.md`
 
-Current bootstrap files in `workspace/`:
-- `IDENTITY.md`
-- `SOUL.md`
-- `AGENT.md`
-- `USER.md`
+They are placeholders today, but they remain in-repo so future work has concrete identity inputs to build from.
 
-They are not yet wired into a rebuilt autonomy runtime in this release.
+## What Skills And Tools Mean Right Now
 
-## Roadmap Anchor
+The `skills/` and `tools/` directories are placeholders only.
 
-The only supported anchor for future rebuild work is the TODO roadmap in `docs/TODO_RUNTIME_DIFF.md`.
+They exist so future work has concrete anchors, but nothing there is implemented yet.
 
-The rule is simple:
-- if llama already does it, Agent-02 must not re-implement it
-- only the post-llama product diff should be built later
+## Canon Docs
+
+Use these files as the current source of truth:
+- `docs/TODO_RUNTIME_DIFF.md`
+- `docs/BLUEPRINT_EN.md`
+- `docs/BLUEPRINT_VI.md`
+- `docs/TUTORIAL_EN.md`
+- `docs/TUTORIAL_VI.md`

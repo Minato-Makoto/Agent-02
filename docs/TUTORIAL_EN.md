@@ -1,53 +1,36 @@
-# Tutorial
+# Tutorial EN
 
-## 1. What You Get Today
+## What You Can Do Now
 
-Current Agent-02 does one thing:
-- launch `llama-server.exe`
+You can use the thin launcher in this repo, or run `llama-server.exe` directly yourself.
 
-The default UI is the llama WebUI served by that process.
+The launcher only starts llama-server. It does not own runtime behavior beyond that.
 
-## 2. Start It
+## What Is Not Here Yet
 
-1. Put your GGUF files under the shared `models/` directory.
-2. Copy `run.local.bat.example` to `run.local.bat` if you need local path overrides.
-3. Run `run.bat`.
+- no custom Agent-02 UI
+- no custom runtime
+- no implemented skills
+- no implemented tools
 
-Default local URLs:
-- WebUI: `http://127.0.0.1:8080`
-- Health: `http://127.0.0.1:8080/health`
-- Models: `http://127.0.0.1:8080/models`
+## What Is Intentionally Retained
 
-## 3. What Agent-02 Does Not Add
+- `workspace/IDENTITY.md`
+- `workspace/SOUL.md`
+- `workspace/AGENT.md`
+- `workspace/USER.md`
 
-This release does not add:
-- a custom WebUI
-- a custom gateway
-- a custom chat session layer
-- a custom model picker on top of llama
+These remain as future identity/bootstrap anchors.
 
-If the feature already exists in standalone llama, Agent-02 intentionally leaves it there.
+## What The Placeholder Directories Mean
 
-## 4. Local Overrides
+- `skills/` is a future inventory anchor
+- `tools/` is a future inventory anchor
 
-Use `run.local.bat` for machine-specific changes such as:
-- `SERVER_EXE`
-- `MODELS_DIR`
-- `HOST`
-- `PORT`
-- `MODELS_MAX`
-- `CTX_SIZE`
-- `GPU_LAYERS`
+They are TODO scaffolds, not shipped capabilities.
 
-## 5. Troubleshooting
+## Read Before Building
 
-If startup fails:
-- read the launcher output for `Reason`, `Command`, and `llama-server stderr (tail)`
-- check whether `HOST:PORT` is already occupied
-- verify `SERVER_EXE` and `MODELS_DIR`
-
-## 6. What Comes Next
-
-Future work does not start from UI duplication.
-
-It starts from the TODO roadmap in `docs/TODO_RUNTIME_DIFF.md`, and only for features that standalone llama does not already own.
+1. `README.md`
+2. `docs/BLUEPRINT_EN.md`
+3. `docs/TODO_RUNTIME_DIFF.md`
