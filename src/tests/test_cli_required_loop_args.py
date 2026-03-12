@@ -1,21 +1,17 @@
 from agentforge.cli_args import build_parser
 
 
-def test_cli_run_alias_accepts_gateway_flags_and_legacy_positionals():
+def test_cli_run_accepts_llama_launcher_flags():
     parser = build_parser()
     args = parser.parse_args(
         [
             "run",
-            "dummy.gguf",
-            "--provider",
-            "local",
             "--server-exe",
             "llama-server.exe",
-            "--open-browser",
+            "--models-dir",
+            "models",
         ]
     )
     assert args.command == "run"
-    assert args.model == "dummy.gguf"
-    assert args.provider == "local"
     assert args.server_exe == "llama-server.exe"
-    assert args.open_browser is True
+    assert args.models_dir == "models"

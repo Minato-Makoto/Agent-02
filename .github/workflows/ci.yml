@@ -42,8 +42,5 @@ jobs:
       - name: Launcher smoke
         shell: cmd
         run: |
-          set PROVIDER=openai_compatible
-          set BASE_URL=http://127.0.0.1:8080
-          set MODEL_ID=local
           set EXTRA_ARGS=--help
           call run.bat
