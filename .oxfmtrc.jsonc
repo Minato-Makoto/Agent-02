@@ -12,7 +12,6 @@
     "apps/",
     "assets/",
     "CLAUDE.md",
-    "docker-compose.yml",
     "dist/",
     "docs/_layouts/",
     "node_modules/",
@@ -20,7 +19,6 @@
     "pnpm-lock.yaml/",
     "src/gateway/server-methods/CLAUDE.md",
     "src/auto-reply/reply/export-html/",
-    "Swabble/",
     "vendor/",
   ],
 }

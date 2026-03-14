@@ -29,6 +29,7 @@ import {
 } from "../context-window-guard.js";
 import { DEFAULT_CONTEXT_TOKENS, DEFAULT_MODEL, DEFAULT_PROVIDER } from "../defaults.js";
 import { FailoverError, resolveFailoverStatus } from "../failover-error.js";
+import { isLocalLlamaRuntimeTarget, resolveLlamaRuntimeContextWindow } from "../llama-runtime.js";
 import {
   ensureAuthProfileStore,
   getApiKeyForModel,
@@ -375,10 +376,20 @@ export async function runEmbeddedPiAgent(
         });
       }
 
+      const runtimeContextWindow = isLocalLlamaRuntimeTarget(model.baseUrl)
+        ? (
+            await resolveLlamaRuntimeContextWindow({
+              baseUrl: model.baseUrl,
+              modelId,
+              headers: model.headers,
+            })
+          )?.contextWindow
+        : undefined;
       const ctxInfo = resolveContextWindowInfo({
         cfg: params.config,
         provider,
         modelId,
+        runtimeContextWindow,
         modelContextWindow: model.contextWindow,
         defaultTokens: DEFAULT_CONTEXT_TOKENS,
       });

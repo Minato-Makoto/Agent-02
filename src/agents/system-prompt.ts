@@ -1,4 +1,5 @@
 import { createHmac, createHash } from "node:crypto";
+import { normalizeReplyAudience, type ReplyAudience } from "../auto-reply/audience.js";
 import type { ReasoningLevel, ThinkLevel } from "../auto-reply/thinking.js";
 import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
 import type { MemoryCitationsMode } from "../config/types.memory.js";
@@ -233,6 +234,7 @@ export function buildAgentSystemPrompt(params: {
     channel: string;
   };
   memoryCitationsMode?: MemoryCitationsMode;
+  audience?: ReplyAudience;
 }) {
   const acpEnabled = params.acpEnabled !== false;
   const sandboxedRuntime = params.sandboxInfo?.enabled === true;
@@ -377,6 +379,7 @@ export function buildAgentSystemPrompt(params: {
   const inlineButtonsEnabled = runtimeCapabilitiesLower.has("inlinebuttons");
   const messageChannelOptions = listDeliverableMessageChannels().join("|");
   const promptMode = params.promptMode ?? "full";
+  const audience = normalizeReplyAudience(params.audience);
   const isMinimal = promptMode === "minimal" || promptMode === "none";
   const sandboxContainerWorkspace = params.sandboxInfo?.containerWorkspaceDir?.trim();
   const sanitizedWorkspaceDir = sanitizeForPromptLiteral(params.workspaceDir);
@@ -649,7 +652,7 @@ export function buildAgentSystemPrompt(params: {
   }
 
   // Skip silent replies for subagent/none modes
-  if (!isMinimal) {
+  if (!isMinimal && audience === "background") {
     lines.push(
       "## Silent Replies",
       `When you have nothing to say, respond with ONLY: ${SILENT_REPLY_TOKEN}`,
@@ -667,7 +670,7 @@ export function buildAgentSystemPrompt(params: {
   }
 
   // Skip heartbeats for subagent/none modes
-  if (!isMinimal) {
+  if (!isMinimal && audience === "heartbeat") {
     lines.push(
       "## Heartbeats",
       heartbeatPromptLine,

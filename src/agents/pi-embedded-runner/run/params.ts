@@ -1,4 +1,5 @@
 import type { ImageContent } from "@mariozechner/pi-ai";
+import type { ReplyAudience } from "../../../auto-reply/audience.js";
 import type { ReasoningLevel, ThinkLevel, VerboseLevel } from "../../../auto-reply/thinking.js";
 import type { ReplyPayload } from "../../../auto-reply/types.js";
 import type { AgentStreamParams } from "../../../commands/agent/types.js";
@@ -88,7 +89,8 @@ export type RunEmbeddedPiAgentParams = {
   /** Bootstrap context mode for workspace file injection. */
   bootstrapContextMode?: "full" | "lightweight";
   /** Run kind hint for context mode behavior. */
-  bootstrapContextRunKind?: "default" | "heartbeat" | "cron";
+  bootstrapContextRunKind?: "default" | "interactive" | "heartbeat" | "cron";
+  audience?: ReplyAudience;
   /** Seen bootstrap truncation warning signatures for this session (once mode dedupe). */
   bootstrapPromptWarningSignaturesSeen?: string[];
   /** Last shown bootstrap truncation warning signature for this session. */

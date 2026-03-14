@@ -1640,6 +1640,7 @@ export async function runEmbeddedAttempt(
     const ownerDisplay = resolveOwnerDisplaySetting(params.config);
 
     const appendPrompt = buildEmbeddedSystemPrompt({
+      audience: params.audience,
       workspaceDir: effectiveWorkspace,
       defaultThinkLevel: params.thinkLevel,
       reasoningLevel: params.reasoningLevel ?? "off",

@@ -1308,6 +1308,7 @@ export const chatHandlers: GatewayRequestHandlers = {
         cfg,
         dispatcher,
         replyOptions: {
+          audience: "interactive",
           runId: clientRunId,
           abortSignal: abortController.signal,
           images: parsedImages.length > 0 ? parsedImages : undefined,

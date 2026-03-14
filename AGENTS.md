@@ -88,14 +88,13 @@
 ## Build, Test, and Development Commands
 
 - Runtime baseline: Node **22+** (keep Node + Bun paths working).
-- Install deps: `pnpm install`
+- Install deps: `corepack pnpm install`
 - If deps are missing (for example `node_modules` missing, `vitest not found`, or `command not found`), run the repo’s package-manager install command (prefer lockfile/README-defined PM), then rerun the exact requested command once. Apply this to test/build/lint/typecheck/dev commands; if retry still fails, report the command and first actionable error.
-- Pre-commit hooks: `prek install` (runs same checks as CI)
-- Also supported: `bun install` (keep `pnpm-lock.yaml` + Bun patching in sync when touching deps/patches).
-- Prefer Bun for TypeScript execution (scripts, dev, tests): `bun <file.ts>` / `bunx <tool>`.
-- Run CLI in dev: `pnpm openclaw ...` (bun) or `pnpm dev`.
+- Pre-commit hooks: `corepack pnpm prepare`
+- Prefer `corepack pnpm ...` for repo scripts in this fork.
+- Run CLI in dev: `node openclaw.mjs ...` or `corepack pnpm dev`.
+- Windows stack control: `cmd /c run.bat` starts the full local stack and `cmd /c stop.bat` shuts it down.
 - Node remains supported for running built output (`dist/*`) and production installs.
-- Mac packaging (dev): `scripts/package-mac-app.sh` defaults to current arch. Release checklist: `docs/platforms/mac/release.md`.
 - Type-check/build: `pnpm build`
 - TypeScript checks: `pnpm tsgo`
 - Lint/format: `pnpm check`
@@ -130,16 +129,14 @@
 
 - Framework: Vitest with V8 coverage thresholds (70% lines/branches/functions/statements).
 - Naming: match source names with `*.test.ts`; e2e in `*.e2e.test.ts`.
-- Run `pnpm test` (or `pnpm test:coverage`) before pushing when you touch logic.
+- Run `corepack pnpm test` (or `corepack pnpm test:coverage`) before pushing when you touch logic.
 - Do not set test workers above 16; tried already.
 - If local Vitest runs cause memory pressure (common on non-Mac-Studio hosts), use `OPENCLAW_TEST_PROFILE=low OPENCLAW_TEST_SERIAL_GATEWAY=1 pnpm test` for land/gate runs.
-- Live tests (real keys): `CLAWDBOT_LIVE_TEST=1 pnpm test:live` (OpenClaw-only) or `LIVE=1 pnpm test:live` (includes provider live tests). Docker: `pnpm test:docker:live-models`, `pnpm test:docker:live-gateway`. Onboarding Docker E2E: `pnpm test:docker:onboard`.
-- Full kit + what’s covered: `docs/testing.md`.
+- Upstream Docker/mobile/release test lanes are not part of this fork. Use local smoke instead: `corepack pnpm build`, `corepack pnpm check`, `cmd /c run.bat`, verify `http://127.0.0.1:8000/v1/models`, then `cmd /c stop.bat`.
 - Changelog: user-facing changes only; no internal/meta notes (version alignment, appcast reminders, release process).
 - Changelog placement: in the active version block, append new entries to the end of the target section (`### Changes` or `### Fixes`); do not insert new entries at the top of a section.
 - Changelog attribution: use at most one contributor mention per line; prefer `Thanks @author` and do not also add `by @author` on the same entry.
 - Pure test additions/fixes generally do **not** need a changelog entry unless they alter user-facing behavior or the user asks for one.
-- Mobile: before using a simulator, check for connected real devices (iOS + Android) and prefer them when available.
 
 ## Commit & Pull Request Guidelines
 
@@ -172,11 +169,10 @@
 
 ## Security & Configuration Tips
 
-- Web provider stores creds at `~/.openclaw/credentials/`; rerun `openclaw login` if logged out.
-- Pi sessions live under `~/.openclaw/sessions/` by default; the base directory is not configurable.
-- Environment variables: see `~/.profile`.
+- Repo-local runtime state for this fork lives under `.openclaw/` at the repo root.
+- Inspect `run.bat`, `run.local.bat`, and the current shell env before assuming host-global configuration.
 - Never commit or publish real phone numbers, videos, or live configuration values. Use obviously fake placeholders in docs, tests, and examples.
-- Release flow: always read `docs/reference/RELEASING.md` and `docs/platforms/mac/release.md` before any release work; do not ask routine questions once those docs answer them.
+- This fork does not carry upstream mobile/mac release docs or automation. For publish/release work, inspect the current repo state first instead of assuming upstream scripts or docs exist.
 
 ## GHSA (Repo Advisory) Patch/Publish
 
@@ -213,16 +209,11 @@
 - Gateway currently runs only as the menubar app; there is no separate LaunchAgent/helper label installed. Restart via the OpenClaw Mac app or `scripts/restart-mac.sh`; to verify/kill use `launchctl print gui/$UID | grep openclaw` rather than assuming a fixed label. **When debugging on macOS, start/stop the gateway via the app, not ad-hoc tmux sessions; kill any temporary tunnels before handoff.**
 - macOS logs: use `./scripts/clawlog.sh` to query unified logs for the OpenClaw subsystem; it supports follow/tail/category filters and expects passwordless sudo for `/usr/bin/log`.
 - If shared guardrails are available locally, review them; otherwise follow this repo's guidance.
-- SwiftUI state management (iOS/macOS): prefer the `Observation` framework (`@Observable`, `@Bindable`) over `ObservableObject`/`@StateObject`; don’t introduce new `ObservableObject` unless required for compatibility, and migrate existing usages when touching related code.
-- Connection providers: when adding a new connection, update every UI surface and docs (macOS app, web UI, mobile if applicable, onboarding/overview docs) and add matching status + configuration forms so provider lists and settings stay in sync.
-- Version locations: `package.json` (CLI), `apps/android/app/build.gradle.kts` (versionName/versionCode), `apps/ios/Sources/Info.plist` + `apps/ios/Tests/Info.plist` (CFBundleShortVersionString/CFBundleVersion), `apps/macos/Sources/OpenClaw/Resources/Info.plist` (CFBundleShortVersionString/CFBundleVersion), `docs/install/updating.md` (pinned npm version), `docs/platforms/mac/release.md` (APP_VERSION/APP_BUILD examples), Peekaboo Xcode projects/Info.plists (MARKETING_VERSION/CURRENT_PROJECT_VERSION).
-- "Bump version everywhere" means all version locations above **except** `appcast.xml` (only touch appcast when cutting a new macOS Sparkle release).
-- **Restart apps:** “restart iOS/Android apps” means rebuild (recompile/install) and relaunch, not just kill/launch.
-- **Device checks:** before testing, verify connected real devices (iOS/Android) before reaching for simulators/emulators.
-- iOS Team ID lookup: `security find-identity -p codesigning -v` → use Apple Development (…) TEAMID. Fallback: `defaults read com.apple.dt.Xcode IDEProvisioningTeamIdentifiers`.
-- A2UI bundle hash: `src/canvas-host/a2ui/.bundle.hash` is auto-generated; ignore unexpected changes, and only regenerate via `pnpm canvas:a2ui:bundle` (or `scripts/bundle-a2ui.sh`) when needed. Commit the hash as a separate commit.
-- Release signing/notary keys are managed outside the repo; follow internal release docs.
-- Notary auth env vars (`APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_API_KEY_P8`) are expected in your environment (per internal release docs).
+- This is a Windows-only fork. Do not reintroduce Android, iOS, macOS, Docker, or CI/release surfaces unless the user explicitly expands scope.
+- When changing user-facing docs, keep English and Vietnamese pages in sync.
+- Version source of truth for this fork is `package.json`; do not reference removed mobile/mac/appcast release paths.
+- A2UI bundle hash: `src/canvas-host/a2ui/.bundle.hash` is auto-generated; only regenerate via `corepack pnpm canvas:a2ui:bundle` or `node scripts/bundle-a2ui.mjs`.
+- Do not assume upstream signing, notarization, simulator, or release infrastructure exists in this fork.
 - **Multi-agent safety:** do **not** create/apply/drop `git stash` entries unless explicitly requested (this includes `git pull --rebase --autostash`). Assume other agents may be working; keep unrelated WIP untouched and avoid cross-cutting state changes.
 - **Multi-agent safety:** when the user says "push", you may `git pull --rebase` to integrate latest changes (never discard other agents' work). When the user says "commit", scope to your changes only. When the user says "commit all", commit everything in grouped chunks.
 - **Multi-agent safety:** do **not** create/remove/modify `git worktree` checkouts (or edit `.worktrees/*`) unless explicitly requested.
@@ -259,9 +250,9 @@
 - Verify without local npmrc side effects: `npm view <pkg> version --userconfig "$(mktemp)"`.
 - Kill the tmux session after publish.
 
-## Plugin Release Fast Path (no core `openclaw` publish)
+## Package Publish Fast Path
 
-- Release only already-on-npm plugins. Source list is in `docs/reference/RELEASING.md` under "Current npm plugin list".
+- Release only packages that still exist in this fork. Inspect `package.json` and `pnpm-workspace.yaml` first; do not assume upstream plugin lists or release docs are present.
 - Run all CLI `op` calls and `npm publish` inside tmux to avoid hangs/interruption:
   - `tmux new -d -s release-plugins-$(date +%Y%m%d-%H%M%S)`
   - `eval "$(op signin --account my.1password.com)"`

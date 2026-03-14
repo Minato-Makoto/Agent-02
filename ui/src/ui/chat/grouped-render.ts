@@ -311,6 +311,8 @@ function extractGroupText(group: MessageGroup): string {
 }
 
 const SKIP_DELETE_CONFIRM_KEY = "openclaw:skipDeleteConfirm";
+let activeDeleteConfirmCleanup: (() => void) | null = null;
+let activeDeleteConfirmAnchor: HTMLElement | null = null;
 
 function shouldSkipDeleteConfirm(): boolean {
   try {
@@ -318,6 +320,123 @@ function shouldSkipDeleteConfirm(): boolean {
   } catch {
     return false;
   }
+}
+
+function closeDeleteConfirmPopover() {
+  activeDeleteConfirmCleanup?.();
+}
+
+function openDeleteConfirmPopover(anchor: HTMLElement, onDelete: () => void) {
+  if (activeDeleteConfirmAnchor === anchor && activeDeleteConfirmCleanup) {
+    closeDeleteConfirmPopover();
+    return;
+  }
+  closeDeleteConfirmPopover();
+
+  const popover = document.createElement("div");
+  popover.className = "chat-delete-confirm";
+  popover.innerHTML = `
+    <p class="chat-delete-confirm__text">Delete this message?</p>
+    <label class="chat-delete-confirm__remember">
+      <input type="checkbox" class="chat-delete-confirm__check" />
+      <span>Don't ask again</span>
+    </label>
+    <div class="chat-delete-confirm__actions">
+      <button class="chat-delete-confirm__cancel" type="button">Cancel</button>
+      <button class="chat-delete-confirm__yes" type="button">Delete</button>
+    </div>
+  `;
+  popover.style.visibility = "hidden";
+  document.body.appendChild(popover);
+
+  const cancel = popover.querySelector(".chat-delete-confirm__cancel") as HTMLButtonElement | null;
+  const yes = popover.querySelector(".chat-delete-confirm__yes") as HTMLButtonElement | null;
+  const check = popover.querySelector(".chat-delete-confirm__check") as HTMLInputElement | null;
+  if (!cancel || !yes || !check) {
+    popover.remove();
+    return;
+  }
+
+  anchor.setAttribute("aria-expanded", "true");
+  activeDeleteConfirmAnchor = anchor;
+
+  const reposition = () => {
+    const rect = anchor.getBoundingClientRect();
+    const popRect = popover.getBoundingClientRect();
+    const margin = 8;
+    let left = rect.left;
+    if (left + popRect.width > window.innerWidth - margin) {
+      left = rect.right - popRect.width;
+    }
+    left = Math.max(margin, Math.min(left, window.innerWidth - popRect.width - margin));
+
+    let top = rect.top - popRect.height - 8;
+    if (top < margin) {
+      top = rect.bottom + 8;
+    }
+    if (top + popRect.height > window.innerHeight - margin) {
+      top = Math.max(margin, window.innerHeight - popRect.height - margin);
+    }
+
+    popover.style.left = `${left}px`;
+    popover.style.top = `${top}px`;
+    popover.style.visibility = "visible";
+  };
+
+  const cleanup = () => {
+    document.removeEventListener("keydown", onKeyDown, true);
+    document.removeEventListener("mousedown", onPointerDown, true);
+    window.removeEventListener("resize", onViewportChange);
+    window.removeEventListener("scroll", onViewportChange, true);
+    if (activeDeleteConfirmCleanup === cleanup) {
+      activeDeleteConfirmCleanup = null;
+    }
+    if (activeDeleteConfirmAnchor === anchor) {
+      activeDeleteConfirmAnchor = null;
+    }
+    anchor.removeAttribute("aria-expanded");
+    popover.remove();
+  };
+
+  const onViewportChange = () => cleanup();
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cleanup();
+      anchor.focus();
+    }
+  };
+  const onPointerDown = (event: MouseEvent) => {
+    const target = event.target as Node | null;
+    if (!target) {
+      return;
+    }
+    if (popover.contains(target) || anchor.contains(target)) {
+      return;
+    }
+    cleanup();
+  };
+
+  cancel.addEventListener("click", cleanup);
+  yes.addEventListener("click", () => {
+    if (check.checked) {
+      try {
+        localStorage.setItem(SKIP_DELETE_CONFIRM_KEY, "1");
+      } catch {}
+    }
+    cleanup();
+    onDelete();
+  });
+
+  requestAnimationFrame(() => {
+    reposition();
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("mousedown", onPointerDown, true);
+    window.addEventListener("resize", onViewportChange);
+    window.addEventListener("scroll", onViewportChange, true);
+  });
+
+  activeDeleteConfirmCleanup = cleanup;
 }
 
 function renderDeleteButton(onDelete: () => void) {
@@ -332,51 +451,7 @@ function renderDeleteButton(onDelete: () => void) {
             onDelete();
             return;
           }
-          const btn = e.currentTarget as HTMLElement;
-          const wrap = btn.closest(".chat-delete-wrap") as HTMLElement;
-          const existing = wrap?.querySelector(".chat-delete-confirm");
-          if (existing) {
-            existing.remove();
-            return;
-          }
-          const popover = document.createElement("div");
-          popover.className = "chat-delete-confirm";
-          popover.innerHTML = `
-            <p class="chat-delete-confirm__text">Delete this message?</p>
-            <label class="chat-delete-confirm__remember">
-              <input type="checkbox" class="chat-delete-confirm__check" />
-              <span>Don't ask again</span>
-            </label>
-            <div class="chat-delete-confirm__actions">
-              <button class="chat-delete-confirm__cancel" type="button">Cancel</button>
-              <button class="chat-delete-confirm__yes" type="button">Delete</button>
-            </div>
-          `;
-          wrap.appendChild(popover);
-
-          const cancel = popover.querySelector(".chat-delete-confirm__cancel")!;
-          const yes = popover.querySelector(".chat-delete-confirm__yes")!;
-          const check = popover.querySelector(".chat-delete-confirm__check") as HTMLInputElement;
-
-          cancel.addEventListener("click", () => popover.remove());
-          yes.addEventListener("click", () => {
-            if (check.checked) {
-              try {
-                localStorage.setItem(SKIP_DELETE_CONFIRM_KEY, "1");
-              } catch {}
-            }
-            popover.remove();
-            onDelete();
-          });
-
-          // Close on click outside
-          const closeOnOutside = (evt: MouseEvent) => {
-            if (!popover.contains(evt.target as Node) && evt.target !== btn) {
-              popover.remove();
-              document.removeEventListener("click", closeOnOutside, true);
-            }
-          };
-          requestAnimationFrame(() => document.addEventListener("click", closeOnOutside, true));
+          openDeleteConfirmPopover(e.currentTarget as HTMLElement, onDelete);
         }}
       >${icons.trash ?? icons.x}</button>
     </span>

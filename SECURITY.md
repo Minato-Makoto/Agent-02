@@ -4,18 +4,15 @@ If you believe you've found a security issue in OpenClaw, please report it priva
 
 ## Reporting
 
-Report vulnerabilities directly to the repository where the issue lives:
+Report vulnerabilities against this repository and its current Windows-local runtime only:
 
-- **Core CLI and gateway** — [openclaw/openclaw](https://github.com/openclaw/openclaw)
-- **macOS desktop app** — [openclaw/openclaw](https://github.com/openclaw/openclaw) (apps/macos)
-- **iOS app** — [openclaw/openclaw](https://github.com/openclaw/openclaw) (apps/ios)
-- **Android app** — [openclaw/openclaw](https://github.com/openclaw/openclaw) (apps/android)
-- **ClawHub** — [openclaw/clawhub](https://github.com/openclaw/clawhub)
-- **Trust and threat model** — [openclaw/trust](https://github.com/openclaw/trust)
+- **Core CLI and gateway**
+- **Local Windows launcher/runtime scripts**
+- **Dashboard integration used by Agent-02**
 
-For issues that don't fit a specific repo, or if you're unsure, email **[security@openclaw.ai](mailto:security@openclaw.ai)** and we'll route it.
+This fork does **not** ship separate macOS, iOS, Android, Docker, or cloud deployment surfaces.
 
-For full reporting instructions see our [Trust page](https://trust.openclaw.ai).
+If GitHub private vulnerability reporting is enabled for this repository, use it. Otherwise contact the repository owner through the same private channel used for repo coordination.
 
 ### Required in Reports
 

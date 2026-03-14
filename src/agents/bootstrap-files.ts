@@ -14,7 +14,7 @@ import {
 } from "./workspace.js";
 
 export type BootstrapContextMode = "full" | "lightweight";
-export type BootstrapContextRunKind = "default" | "heartbeat" | "cron";
+export type BootstrapContextRunKind = "default" | "interactive" | "heartbeat" | "cron";
 
 export function makeBootstrapWarn(params: {
   sessionLabel: string;
@@ -51,11 +51,15 @@ function applyContextModeFilter(params: {
 }): WorkspaceBootstrapFile[] {
   const contextMode = params.contextMode ?? "full";
   const runKind = params.runKind ?? "default";
+  const files =
+    runKind === "interactive"
+      ? params.files.filter((file) => file.name !== "HEARTBEAT.md")
+      : params.files;
   if (contextMode !== "lightweight") {
-    return params.files;
+    return files;
   }
   if (runKind === "heartbeat") {
-    return params.files.filter((file) => file.name === "HEARTBEAT.md");
+    return files.filter((file) => file.name === "HEARTBEAT.md");
   }
   // cron/default lightweight mode keeps bootstrap context empty on purpose.
   return [];

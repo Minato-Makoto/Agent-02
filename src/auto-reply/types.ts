@@ -1,4 +1,5 @@
 import type { ImageContent } from "@mariozechner/pi-ai";
+import type { ReplyAudience } from "./audience.js";
 import type { TypingController } from "./reply/typing.js";
 
 export type BlockReplyContext = {
@@ -21,6 +22,7 @@ export type TypingPolicy =
   | "heartbeat";
 
 export type GetReplyOptions = {
+  audience?: ReplyAudience;
   /** Override run id for agent events (defaults to random UUID). */
   runId?: string;
   /** Abort signal for the underlying agent run. */

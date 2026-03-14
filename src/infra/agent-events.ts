@@ -1,3 +1,4 @@
+import type { ReplyAudience } from "../auto-reply/audience.js";
 import type { VerboseLevel } from "../auto-reply/thinking.js";
 
 export type AgentEventStream = "lifecycle" | "tool" | "assistant" | "error" | (string & {});
@@ -15,6 +16,7 @@ export type AgentRunContext = {
   sessionKey?: string;
   verboseLevel?: VerboseLevel;
   isHeartbeat?: boolean;
+  audience?: ReplyAudience;
   /** Whether control UI clients should receive chat/agent updates for this run. */
   isControlUiVisible?: boolean;
 };
@@ -44,6 +46,9 @@ export function registerAgentRunContext(runId: string, context: AgentRunContext)
   }
   if (context.isHeartbeat !== undefined && existing.isHeartbeat !== context.isHeartbeat) {
     existing.isHeartbeat = context.isHeartbeat;
+  }
+  if (context.audience && existing.audience !== context.audience) {
+    existing.audience = context.audience;
   }
 }
 

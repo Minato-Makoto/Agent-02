@@ -209,12 +209,7 @@ export async function maybeRepairSandboxImages(
     {
       kind: "base",
       image: dockerImage,
-      buildScript:
-        dockerImage === DEFAULT_SANDBOX_COMMON_IMAGE
-          ? "scripts/sandbox-common-setup.sh"
-          : dockerImage === DEFAULT_SANDBOX_IMAGE
-            ? "scripts/sandbox-setup.sh"
-            : undefined,
+      buildScript: undefined,
       updateConfig: (image) => {
         next = updateSandboxDockerImage(next, image);
         changes.push(`Updated agents.defaults.sandbox.docker.image → ${image}`);
@@ -229,7 +224,7 @@ export async function maybeRepairSandboxImages(
       {
         kind: "browser",
         image: resolveSandboxBrowserImage(cfg),
-        buildScript: "scripts/sandbox-browser-setup.sh",
+        buildScript: undefined,
         updateConfig: (image) => {
           next = updateSandboxBrowserImage(next, image);
           changes.push(`Updated agents.defaults.sandbox.browser.image → ${image}`);

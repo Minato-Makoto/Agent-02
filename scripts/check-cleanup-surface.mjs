@@ -38,13 +38,28 @@ const FORBIDDEN_PATHS = [
   "scripts/podman",
   "scripts/systemd",
   "scripts/docs-i18n",
+  "scripts/auth-monitor.sh",
   "scripts/install.sh",
   "scripts/install.ps1",
   "scripts/protocol-gen-swift.ts",
   "scripts/run-openclaw-podman.sh",
+  "scripts/sandbox-browser-setup.sh",
+  "scripts/sandbox-common-setup.sh",
+  "scripts/sandbox-setup.sh",
+  "scripts/setup-auth-system.sh",
+  "scripts/shell-helpers",
   "scripts/termux-auth-widget.sh",
   "scripts/termux-quick-auth.sh",
   "scripts/termux-sync-widget.sh",
+  "docs/reference/templates/CLAUDE.md",
+  "src/config/talk-defaults.test.ts",
+  "src/cron/cron-protocol-conformance.test.ts",
+  "src/docker-build-cache.test.ts",
+  "src/docker-image-digests.test.ts",
+  "src/docker-setup.e2e.test.ts",
+  "src/dockerfile.test.ts",
+  "src/infra/host-env-security.policy-parity.test.ts",
+  "src/scripts/ci-changed-scope.test.ts",
 ];
 
 const FORBIDDEN_SCRIPT_PATTERNS = [
@@ -110,6 +125,34 @@ if (!fs.existsSync(path.join(ROOT, "README.md"))) {
 
 if (!fs.existsSync(path.join(ROOT, "README.vi.md"))) {
   failures.push("missing README.vi.md");
+}
+
+const requiredWorkspaceTemplates = [
+  "AGENTS.md",
+  "AGENTS.dev.md",
+  "BOOT.md",
+  "HEARTBEAT.md",
+  "BOOTSTRAP.md",
+  "IDENTITY.md",
+  "IDENTITY.dev.md",
+  "SOUL.md",
+  "SOUL.dev.md",
+  "TOOLS.md",
+  "TOOLS.dev.md",
+  "USER.md",
+  "USER.dev.md",
+];
+const workspaceTemplateDir = path.join(ROOT, "docs", "reference", "templates");
+if (!fs.existsSync(workspaceTemplateDir)) {
+  failures.push("missing docs/reference/templates");
+} else {
+  for (const templateName of requiredWorkspaceTemplates) {
+    if (!fs.existsSync(path.join(workspaceTemplateDir, templateName))) {
+      failures.push(
+        `missing required workspace template: docs/reference/templates/${templateName}`,
+      );
+    }
+  }
 }
 
 const uiLocaleDir = path.join(ROOT, "ui", "src", "i18n", "locales");

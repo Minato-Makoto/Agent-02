@@ -1,6 +1,10 @@
 import { setCliSessionId } from "../../agents/cli-session.js";
 import { resolveContextTokensForModel } from "../../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../agents/defaults.js";
+import {
+  isLocalLlamaRuntimeTarget,
+  resolveLlamaRuntimeContextWindow,
+} from "../../agents/llama-runtime.js";
 import { isCliProvider } from "../../agents/model-selection.js";
 import { deriveSessionTotalTokens, hasNonzeroUsage } from "../../agents/usage.js";
 import type { OpenClawConfig } from "../../config/config.js";
@@ -46,14 +50,29 @@ export async function updateSessionStoreAfterAgentRun(params: {
   const compactionsThisRun = Math.max(0, result.meta.agentMeta?.compactionCount ?? 0);
   const modelUsed = result.meta.agentMeta?.model ?? fallbackModel ?? defaultModel;
   const providerUsed = result.meta.agentMeta?.provider ?? fallbackProvider ?? defaultProvider;
+  const localLlamaBaseUrl = providerUsed === "vllm" ? "http://127.0.0.1:8000/v1" : undefined;
+  const runtimeContextWindow = isLocalLlamaRuntimeTarget(localLlamaBaseUrl)
+    ? (
+        await resolveLlamaRuntimeContextWindow({
+          baseUrl: localLlamaBaseUrl,
+          modelId: modelUsed,
+          allowAutoload: false,
+        })
+      )?.contextWindow
+    : undefined;
+  const resolvedContextTokens = runtimeContextWindow
+    ? runtimeContextWindow
+    : resolveContextTokensForModel({
+        cfg,
+        provider: providerUsed,
+        model: modelUsed,
+        contextTokensOverride: params.contextTokensOverride,
+        fallbackContextTokens: DEFAULT_CONTEXT_TOKENS,
+      });
   const contextTokens =
-    resolveContextTokensForModel({
-      cfg,
-      provider: providerUsed,
-      model: modelUsed,
-      contextTokensOverride: params.contextTokensOverride,
-      fallbackContextTokens: DEFAULT_CONTEXT_TOKENS,
-    }) ?? DEFAULT_CONTEXT_TOKENS;
+    runtimeContextWindow || !isLocalLlamaRuntimeTarget(localLlamaBaseUrl)
+      ? (resolvedContextTokens ?? DEFAULT_CONTEXT_TOKENS)
+      : undefined;
 
   const entry = sessionStore[sessionKey] ?? {
     sessionId,

@@ -1,6 +1,13 @@
+import { normalizeReplyAudience } from "../auto-reply/audience.js";
 import { DEFAULT_HEARTBEAT_ACK_MAX_CHARS, stripHeartbeatToken } from "../auto-reply/heartbeat.js";
 import { normalizeVerboseLevel } from "../auto-reply/thinking.js";
-import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
+import {
+  HEARTBEAT_TOKEN,
+  isSilentReplyPrefixText,
+  isSilentReplyText,
+  SILENT_REPLY_TOKEN,
+  stripSilentToken,
+} from "../auto-reply/tokens.js";
 import { loadConfig } from "../config/config.js";
 import { type AgentEventPayload, getAgentRunContext } from "../infra/agent-events.js";
 import { resolveHeartbeatVisibility } from "../infra/heartbeat-visibility.js";
@@ -22,16 +29,21 @@ function resolveHeartbeatAckMaxChars(): number {
 
 function resolveHeartbeatContext(runId: string, sourceRunId?: string) {
   const primary = getAgentRunContext(runId);
-  if (primary?.isHeartbeat) {
+  if (primary?.isHeartbeat || primary?.audience) {
     return primary;
   }
   if (sourceRunId && sourceRunId !== runId) {
     const source = getAgentRunContext(sourceRunId);
-    if (source?.isHeartbeat) {
+    if (source) {
       return source;
     }
   }
   return primary;
+}
+
+function isInteractiveChatRun(runId: string, sourceRunId?: string): boolean {
+  const runContext = resolveHeartbeatContext(runId, sourceRunId);
+  return normalizeReplyAudience(runContext?.audience) === "interactive";
 }
 
 /**
@@ -87,6 +99,42 @@ function isSilentReplyLeadFragment(text: string): boolean {
     return false;
   }
   return SILENT_REPLY_TOKEN.startsWith(normalized);
+}
+
+function isHeartbeatLeadFragment(text: string): boolean {
+  return isSilentReplyPrefixText(text, HEARTBEAT_TOKEN);
+}
+
+function normalizeInteractiveChatText(rawText: string): {
+  text: string;
+  controlOnly: boolean;
+} {
+  let text = rawText.trim();
+  if (!text) {
+    return { text: "", controlOnly: false };
+  }
+
+  const strippedHeartbeat = stripHeartbeatToken(text, { mode: "message" });
+  if (strippedHeartbeat.didStrip) {
+    if (strippedHeartbeat.shouldSkip || !strippedHeartbeat.text.trim()) {
+      return { text: "", controlOnly: true };
+    }
+    text = strippedHeartbeat.text.trim();
+  }
+
+  if (isSilentReplyText(text, SILENT_REPLY_TOKEN)) {
+    return { text: "", controlOnly: true };
+  }
+
+  const strippedSilent = stripSilentToken(text, SILENT_REPLY_TOKEN);
+  if (strippedSilent !== text) {
+    if (!strippedSilent.trim()) {
+      return { text: "", controlOnly: true };
+    }
+    text = strippedSilent.trim();
+  }
+
+  return { text, controlOnly: false };
 }
 
 function appendUniqueSuffix(base: string, suffix: string): string {
@@ -245,6 +293,7 @@ type ToolRecipientEntry = {
 
 const TOOL_EVENT_RECIPIENT_TTL_MS = 10 * 60 * 1000;
 const TOOL_EVENT_RECIPIENT_FINAL_GRACE_MS = 30 * 1000;
+const CHAT_DELTA_THROTTLE_MS = 40;
 
 export function createToolEventRecipientRegistry(): ToolEventRecipientRegistry {
   const recipients = new Map<string, ToolRecipientEntry>();
@@ -358,11 +407,22 @@ export function createAgentEventHandler({
     if (!mergedText) {
       return;
     }
-    chatRunState.buffers.set(clientRunId, mergedText);
-    if (isSilentReplyText(mergedText, SILENT_REPLY_TOKEN)) {
+    const interactiveChatRun = isInteractiveChatRun(clientRunId, sourceRunId);
+    const interactiveNormalized = interactiveChatRun
+      ? normalizeInteractiveChatText(mergedText)
+      : null;
+    const displayText =
+      interactiveNormalized && !interactiveNormalized.controlOnly
+        ? interactiveNormalized.text
+        : mergedText;
+    chatRunState.buffers.set(clientRunId, displayText);
+    if (interactiveNormalized?.controlOnly) {
       return;
     }
-    if (isSilentReplyLeadFragment(mergedText)) {
+    if (isSilentReplyText(displayText, SILENT_REPLY_TOKEN)) {
+      return;
+    }
+    if (isSilentReplyLeadFragment(displayText) || isHeartbeatLeadFragment(displayText)) {
       return;
     }
     if (shouldHideHeartbeatChatOutput(clientRunId, sourceRunId)) {
@@ -370,19 +430,27 @@ export function createAgentEventHandler({
     }
     const now = Date.now();
     const last = chatRunState.deltaSentAt.get(clientRunId) ?? 0;
-    if (now - last < 150) {
+    if (now - last < CHAT_DELTA_THROTTLE_MS) {
       return;
     }
     chatRunState.deltaSentAt.set(clientRunId, now);
-    chatRunState.deltaLastBroadcastLen.set(clientRunId, mergedText.length);
+    chatRunState.deltaLastBroadcastLen.set(clientRunId, displayText.length);
+    const deltaText =
+      cleanedDelta ||
+      (previousText && displayText.startsWith(previousText)
+        ? displayText.slice(previousText.length)
+        : previousText
+          ? ""
+          : displayText);
     const payload = {
       runId: clientRunId,
       sessionKey,
       seq,
       state: "delta" as const,
+      ...(deltaText ? { deltaText } : {}),
       message: {
         role: "assistant",
-        content: [{ type: "text", text: mergedText }],
+        content: [{ type: "text", text: displayText }],
         timestamp: now,
       },
     };
@@ -399,10 +467,18 @@ export function createAgentEventHandler({
     const bufferedText = stripInlineDirectiveTagsForDisplay(
       chatRunState.buffers.get(clientRunId) ?? "",
     ).text.trim();
+    const interactiveChatRun = isInteractiveChatRun(clientRunId, sourceRunId);
+    const interactiveNormalized = interactiveChatRun
+      ? normalizeInteractiveChatText(bufferedText)
+      : null;
+    const effectiveBufferedText =
+      interactiveNormalized && !interactiveNormalized.controlOnly
+        ? interactiveNormalized.text.trim()
+        : bufferedText;
     const normalizedHeartbeatText = normalizeHeartbeatChatFinalText({
       runId: clientRunId,
       sourceRunId,
-      text: bufferedText,
+      text: effectiveBufferedText,
     });
     const text = normalizedHeartbeatText.text.trim();
     const shouldSuppressSilent =
@@ -414,6 +490,7 @@ export function createAgentEventHandler({
     );
     if (
       !text ||
+      interactiveNormalized?.controlOnly ||
       shouldSuppressSilent ||
       shouldSuppressSilentLeadFragment ||
       shouldSuppressHeartbeatStreaming
@@ -427,11 +504,13 @@ export function createAgentEventHandler({
     }
 
     const now = Date.now();
+    const deltaText = text.slice(lastBroadcastLen);
     const flushPayload = {
       runId: clientRunId,
       sessionKey,
       seq,
       state: "delta" as const,
+      ...(deltaText ? { deltaText } : {}),
       message: {
         role: "assistant",
         content: [{ type: "text", text }],
@@ -456,22 +535,42 @@ export function createAgentEventHandler({
     const bufferedText = stripInlineDirectiveTagsForDisplay(
       chatRunState.buffers.get(clientRunId) ?? "",
     ).text.trim();
+    const interactiveChatRun = isInteractiveChatRun(clientRunId, sourceRunId);
+    const interactiveNormalized = interactiveChatRun
+      ? normalizeInteractiveChatText(bufferedText)
+      : null;
+    const effectiveBufferedText =
+      interactiveNormalized && !interactiveNormalized.controlOnly
+        ? interactiveNormalized.text.trim()
+        : bufferedText;
     const normalizedHeartbeatText = normalizeHeartbeatChatFinalText({
       runId: clientRunId,
       sourceRunId,
-      text: bufferedText,
+      text: effectiveBufferedText,
     });
     const text = normalizedHeartbeatText.text.trim();
     const shouldSuppressSilent =
       normalizedHeartbeatText.suppress || isSilentReplyText(text, SILENT_REPLY_TOKEN);
     // Flush any throttled delta so streaming clients receive the complete text
-    // before the final event. The 150 ms throttle in emitChatDelta may have
+    // before the final event. The short throttle in emitChatDelta may have
     // suppressed the most recent chunk, leaving the client with stale text.
     // Only flush if the buffer has grown since the last broadcast to avoid duplicates.
     flushBufferedChatDeltaIfNeeded(sessionKey, clientRunId, sourceRunId, seq);
     chatRunState.deltaLastBroadcastLen.delete(clientRunId);
     chatRunState.buffers.delete(clientRunId);
     chatRunState.deltaSentAt.delete(clientRunId);
+    if (jobState === "done" && interactiveNormalized?.controlOnly) {
+      const payload = {
+        runId: clientRunId,
+        sessionKey,
+        seq,
+        state: "error" as const,
+        errorMessage: "Model returned an internal control token instead of a chat reply.",
+      };
+      broadcast("chat", payload);
+      nodeSendToSession(sessionKey, "chat", payload);
+      return;
+    }
     if (jobState === "done") {
       const payload = {
         runId: clientRunId,

@@ -104,7 +104,7 @@ async function ensureSandboxBrowserImage(image: string) {
     return;
   }
   throw new Error(
-    `Sandbox browser image not found: ${image}. Build it with scripts/sandbox-browser-setup.sh.`,
+    `Sandbox browser image not found: ${image}. Agent-02 does not ship Docker sandbox image setup scripts; configure a custom image or disable sandbox browser support.`,
   );
 }
 

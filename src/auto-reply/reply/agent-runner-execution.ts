@@ -29,6 +29,7 @@ import {
   resolveMessageChannel,
 } from "../../utils/message-channel.js";
 import { isInternalMessageChannel } from "../../utils/message-channel.js";
+import { normalizeReplyAudience } from "../audience.js";
 import { stripHeartbeatToken } from "../heartbeat.js";
 import type { TemplateContext } from "../templating.js";
 import type { VerboseLevel } from "../thinking.js";
@@ -109,6 +110,9 @@ export async function runAgentTurnWithFallback(params: {
   const directlySentBlockKeys = new Set<string>();
 
   const runId = params.opts?.runId ?? crypto.randomUUID();
+  const audience = normalizeReplyAudience(
+    params.opts?.audience ?? (params.isHeartbeat ? "heartbeat" : "background"),
+  );
   const normalizeReplyMediaPaths = createReplyMediaPathNormalizer({
     cfg: params.followupRun.run.config,
     sessionKey: params.sessionKey,
@@ -132,6 +136,7 @@ export async function runAgentTurnWithFallback(params: {
       sessionKey: params.sessionKey,
       verboseLevel: params.resolvedVerboseLevel,
       isHeartbeat: params.isHeartbeat,
+      audience,
       isControlUiVisible: shouldSurfaceToControlUi,
     });
   }
@@ -325,6 +330,7 @@ export async function runAgentTurnWithFallback(params: {
           return (async () => {
             const result = await runEmbeddedPiAgent({
               ...embeddedContext,
+              audience,
               trigger: params.isHeartbeat ? "heartbeat" : "user",
               groupId: resolveGroupSessionKey(params.sessionCtx)?.id,
               groupChannel:
@@ -346,7 +352,12 @@ export async function runAgentTurnWithFallback(params: {
               })(),
               suppressToolErrorWarnings: params.opts?.suppressToolErrorWarnings,
               bootstrapContextMode: params.opts?.bootstrapContextMode,
-              bootstrapContextRunKind: params.opts?.isHeartbeat ? "heartbeat" : "default",
+              bootstrapContextRunKind:
+                audience === "interactive"
+                  ? "interactive"
+                  : params.opts?.isHeartbeat
+                    ? "heartbeat"
+                    : "default",
               images: params.opts?.images,
               abortSignal: params.opts?.abortSignal,
               blockReplyBreak: params.resolvedBlockStreamingBreak,

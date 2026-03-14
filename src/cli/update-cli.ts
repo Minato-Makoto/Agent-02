@@ -78,7 +78,7 @@ ${fmtExamples}
 
 ${theme.heading("Notes:")}
   - Switch channels with --channel stable|beta|dev
-  - For global installs: auto-updates via detected package manager when possible (see docs/install/updating.md)
+  - For global installs: auto-updates via the detected package manager when possible
   - Downgrades require confirmation (can break configuration)
   - Skips update if the working directory has uncommitted changes
 

@@ -18,7 +18,7 @@ import {
 } from "../auto-reply/heartbeat.js";
 import { getReplyFromConfig } from "../auto-reply/reply.js";
 import { HEARTBEAT_TOKEN } from "../auto-reply/tokens.js";
-import type { ReplyPayload } from "../auto-reply/types.js";
+import type { GetReplyOptions, ReplyPayload } from "../auto-reply/types.js";
 import { getChannelPlugin } from "../channels/plugins/index.js";
 import type { ChannelHeartbeatDeps } from "../channels/plugins/types.js";
 import { parseDurationMs } from "../cli/parse-duration.js";
@@ -769,14 +769,20 @@ export async function runHeartbeatOnce(opts: {
     const suppressToolErrorWarnings = heartbeat?.suppressToolErrorWarnings === true;
     const bootstrapContextMode: "lightweight" | undefined =
       heartbeat?.lightContext === true ? "lightweight" : undefined;
-    const replyOpts = heartbeatModelOverride
+    const replyOpts: GetReplyOptions = heartbeatModelOverride
       ? {
+          audience: "heartbeat",
           isHeartbeat: true,
           heartbeatModelOverride,
           suppressToolErrorWarnings,
           bootstrapContextMode,
         }
-      : { isHeartbeat: true, suppressToolErrorWarnings, bootstrapContextMode };
+      : {
+          audience: "heartbeat",
+          isHeartbeat: true,
+          suppressToolErrorWarnings,
+          bootstrapContextMode,
+        };
     const replyResult = await getReplyFromConfig(ctx, replyOpts, cfg);
     const replyPayload = resolveHeartbeatReplyPayload(replyResult);
     const includeReasoning = heartbeat?.includeReasoning === true;

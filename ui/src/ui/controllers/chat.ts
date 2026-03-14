@@ -4,13 +4,13 @@ import type { GatewayBrowserClient } from "../gateway.ts";
 import type { ChatAttachment } from "../ui-types.ts";
 import { generateUUID } from "../uuid.ts";
 
-const SILENT_REPLY_PATTERN = /^\s*NO_REPLY\s*$/;
+const CONTROL_REPLY_PATTERNS = [/^\s*NO_REPLY\s*$/, /^\s*HEARTBEAT_OK\s*$/];
 
-function isSilentReplyStream(text: string): boolean {
-  return SILENT_REPLY_PATTERN.test(text);
+function isControlReplyStream(text: string): boolean {
+  return CONTROL_REPLY_PATTERNS.some((pattern) => pattern.test(text));
 }
-/** Client-side defense-in-depth: detect assistant messages whose text is purely NO_REPLY. */
-function isAssistantSilentReply(message: unknown): boolean {
+/** Client-side defense-in-depth: detect assistant messages whose text is purely a control token. */
+function isAssistantControlReply(message: unknown): boolean {
   if (!message || typeof message !== "object") {
     return false;
   }
@@ -21,10 +21,10 @@ function isAssistantSilentReply(message: unknown): boolean {
   }
   // entry.text takes precedence — matches gateway extractAssistantTextForSilentCheck
   if (typeof entry.text === "string") {
-    return isSilentReplyStream(entry.text);
+    return isControlReplyStream(entry.text);
   }
   const text = extractText(message);
-  return typeof text === "string" && isSilentReplyStream(text);
+  return typeof text === "string" && isControlReplyStream(text);
 }
 
 export type ChatState = {
@@ -48,6 +48,7 @@ export type ChatEventPayload = {
   sessionKey: string;
   state: "delta" | "final" | "aborted" | "error";
   message?: unknown;
+  deltaText?: string;
   errorMessage?: string;
 };
 
@@ -78,7 +79,7 @@ export async function loadChatHistory(state: ChatState) {
       },
     );
     const messages = Array.isArray(res.messages) ? res.messages : [];
-    state.chatMessages = messages.filter((message) => !isAssistantSilentReply(message));
+    state.chatMessages = messages.filter((message) => !isAssistantControlReply(message));
     state.chatThinkingLevel = res.thinkingLevel ?? null;
     // Clear all streaming state — history includes tool results and text
     // inline, so keeping streaming artifacts would cause duplicates.
@@ -272,7 +273,7 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   if (payload.runId && state.chatRunId && payload.runId !== state.chatRunId) {
     if (payload.state === "final") {
       const finalMessage = normalizeFinalAssistantMessage(payload.message);
-      if (finalMessage && !isAssistantSilentReply(finalMessage)) {
+      if (finalMessage && !isAssistantControlReply(finalMessage)) {
         state.chatMessages = [...state.chatMessages, finalMessage];
         return null;
       }
@@ -282,8 +283,13 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   }
 
   if (payload.state === "delta") {
+    const nextDelta = typeof payload.deltaText === "string" ? payload.deltaText : null;
+    if (nextDelta && !isControlReplyStream(nextDelta)) {
+      state.chatStream = `${state.chatStream ?? ""}${nextDelta}`;
+      return payload.state;
+    }
     const next = extractText(payload.message);
-    if (typeof next === "string" && !isSilentReplyStream(next)) {
+    if (typeof next === "string" && !isControlReplyStream(next)) {
       const current = state.chatStream ?? "";
       if (!current || next.length >= current.length) {
         state.chatStream = next;
@@ -291,9 +297,9 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
     }
   } else if (payload.state === "final") {
     const finalMessage = normalizeFinalAssistantMessage(payload.message);
-    if (finalMessage && !isAssistantSilentReply(finalMessage)) {
+    if (finalMessage && !isAssistantControlReply(finalMessage)) {
       state.chatMessages = [...state.chatMessages, finalMessage];
-    } else if (state.chatStream?.trim() && !isSilentReplyStream(state.chatStream)) {
+    } else if (state.chatStream?.trim() && !isControlReplyStream(state.chatStream)) {
       state.chatMessages = [
         ...state.chatMessages,
         {
@@ -308,11 +314,11 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
     state.chatStreamStartedAt = null;
   } else if (payload.state === "aborted") {
     const normalizedMessage = normalizeAbortedAssistantMessage(payload.message);
-    if (normalizedMessage && !isAssistantSilentReply(normalizedMessage)) {
+    if (normalizedMessage && !isAssistantControlReply(normalizedMessage)) {
       state.chatMessages = [...state.chatMessages, normalizedMessage];
     } else {
       const streamedText = state.chatStream ?? "";
-      if (streamedText.trim() && !isSilentReplyStream(streamedText)) {
+      if (streamedText.trim() && !isControlReplyStream(streamedText)) {
         state.chatMessages = [
           ...state.chatMessages,
           {
