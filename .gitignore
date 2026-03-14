@@ -1,8 +1,41 @@
-run.local.bat
-workspace/*
-!workspace/IDENTITY.md
-!workspace/SOUL.md
-!workspace/AGENT.md
-!workspace/USER.md
-*.log
+node_modules
+**/node_modules/
+dist
+coverage
+.pnpm-store
+.worktrees/
+.tsbuildinfo
+*.bun-build
 __pycache__/
+*.pyc
+.DS_Store
+**/.DS_Store
+.env
+package-lock.json
+
+# Local editor and temp state
+.idea/
+.serena/
+.vscode/
+.local/
+docs/.local/
+docs/.mintlify/
+tmp/
+.tgz
+
+# Agent-02 local runtime
+run.local.bat
+.openclaw/
+memory/
+local/
+
+# UI artifacts
+ui/src/ui/__screenshots__/
+ui/playwright-report/
+ui/test-results/
+
+# Canvas/A2UI build artifacts
+vendor/a2ui/renderers/lit/dist/
+src/canvas-host/a2ui/*.bundle.js
+src/canvas-host/a2ui/*.map
+.bundle.hash

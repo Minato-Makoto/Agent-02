@@ -1,0 +1,57 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Agent-02",
+  "description": "Windows-only local AI workstation built on the OpenClaw core and llama-server.",
+  "theme": "mint",
+  "colors": {
+    "primary": "#1368ff",
+    "dark": "#1368ff",
+    "light": "#4f8cff"
+  },
+  "navigation": {
+    "languages": [
+      {
+        "language": "en",
+        "tabs": [
+          {
+            "tab": "Agent-02",
+            "groups": [
+              {
+                "group": "Operator Guide",
+                "pages": [
+                  "en/overview",
+                  "en/windows-setup",
+                  "en/launcher",
+                  "en/models",
+                  "en/operations",
+                  "en/troubleshooting"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "language": "vi",
+        "tabs": [
+          {
+            "tab": "Agent-02",
+            "groups": [
+              {
+                "group": "Hướng Dẫn Vận Hành",
+                "pages": [
+                  "vi/overview",
+                  "vi/windows-setup",
+                  "vi/launcher",
+                  "vi/models",
+                  "vi/operations",
+                  "vi/troubleshooting"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,69 +1,71 @@
 # Agent-02
 
-Agent-02 is now a minimal skeleton repository.
+Agent-02 is a Windows-only local AI workstation built on the OpenClaw core and a local `llama-server` process.
 
-Current state:
-- a thin launcher that starts `llama-server`
-- no shipped custom runtime beyond that launcher
-- no shipped custom UI
-- no shipped skill or tool implementations
-- retained identity bootstrap markdown files
-- docs and TODO anchors for future rebuild work
+It keeps the current runtime contract:
 
-## What Remains
+- `run.bat` is the primary launcher.
+- `stop.bat` is the primary shutdown helper.
+- `run.local.bat` is the local override layer.
+- `.openclaw/` stores config, logs, workspace, and runtime state.
+- `llama-server` listens on `127.0.0.1:8000`.
+- the OpenClaw gateway and dashboard listen on `127.0.0.1:18789`.
 
-Minimal retained anchors:
-- `run.bat`
-- `run.local.bat.example`
-- `src/agentforge/cli.py`
-- `workspace/IDENTITY.md`
-- `workspace/SOUL.md`
-- `workspace/AGENT.md`
-- `workspace/USER.md`
-- `skills/`
-- `tools/`
-- `docs/`
+This fork intentionally removes mobile, macOS, Docker, and release-distribution surfaces so the repo stays focused on the Windows local workflow.
 
-## Current Rule
+## Documentation
 
-`llama-server` owns runtime and UI behavior.
+- English docs: [docs/en/overview.md](docs/en/overview.md)
+- Vietnamese docs: [README.vi.md](README.vi.md) and [docs/vi/overview.md](docs/vi/overview.md)
 
-Agent-02 must not rebuild:
-- llama WebUI
-- model selection
-- chat flow
-- conversation UX
+## Quick Start
 
-## What The Launcher Is Allowed To Do
+1. Install Node.js 22+ and make sure `node` and `corepack` are in `PATH`.
+2. Place `llama-server.exe` in `..\\llama.cpp\\`.
+3. Place `.gguf` model files in `..\\models\\`.
+4. Adjust [run.local.bat](run.local.bat) if you want to override model selection, GPU layers, ports, or paths.
+5. Double-click [run.bat](run.bat) to start the stack.
+6. Double-click [stop.bat](stop.bat) when you want a full shutdown.
 
-Only:
-- resolve local paths
-- create workspace directory if needed
-- start `llama-server`
+On the first run, the launcher installs dependencies and builds the project automatically when `dist/entry.js` is missing.
 
-It must not own chat, model, session, or policy semantics.
+## Model Selection
 
-## Identity Bootstrap Files
+Agent-02 does not hardcode a context window or output token limit in the launcher.
 
-The following markdown files are intentionally retained as future runtime anchors:
-- `workspace/IDENTITY.md`
-- `workspace/SOUL.md`
-- `workspace/AGENT.md`
-- `workspace/USER.md`
+- If `DEFAULT_MODEL_ID` is set in [run.local.bat](run.local.bat), that model becomes the default Agent-02 model.
+- If `DEFAULT_MODEL_ID` is empty, the launcher reads `GET /v1/models` from `llama-server` and picks the first model ID in stable alphabetical order.
+- OpenClaw then uses `vllm/<model-id>` as the default primary model.
 
-They are placeholders today, but they remain in-repo so future work has concrete identity inputs to build from.
+## Operations
 
-## What Skills And Tools Mean Right Now
+- Dashboard: `http://127.0.0.1:18789/`
+- `llama-server` API: `http://127.0.0.1:8000/v1`
+- Optional `llama.cpp` Web UI: `http://127.0.0.1:8000/`
+- Logs: `.openclaw/logs/`
 
-The `skills/` and `tools/` directories are placeholders only.
+To shut everything down completely, prefer [stop.bat](stop.bat).
 
-They exist so future work has concrete anchors, but nothing there is implemented yet.
+Manual PowerShell fallback:
 
-## Canon Docs
+```powershell
+Get-NetTCPConnection -State Listen -LocalPort 8000,18789 -ErrorAction SilentlyContinue |
+  Select-Object -ExpandProperty OwningProcess -Unique |
+  ForEach-Object { Stop-Process -Id $_ -Force }
+```
 
-Use these files as the current source of truth:
-- `docs/TODO_RUNTIME_DIFF.md`
-- `docs/BLUEPRINT_EN.md`
-- `docs/BLUEPRINT_VI.md`
-- `docs/TUTORIAL_EN.md`
-- `docs/TUTORIAL_VI.md`
+## Repo Scope
+
+This repo keeps:
+
+- the OpenClaw TypeScript core and UI
+- the current Windows launcher flow
+- the local model integration path through `llama-server`
+- the Canvas/A2UI build path still required by the current build
+
+This repo removes:
+
+- Android, iOS, and macOS native app surfaces
+- Docker and container packaging flows
+- release automation and maintainer packaging baggage
+- locale docs other than English and Vietnamese

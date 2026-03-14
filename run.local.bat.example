@@ -1,7 +1,11 @@
 @echo off
-set "SERVER_EXE=D:\AI Agent\llama.cpp\llama-server.exe"
-set "MODELS_DIR=D:\AI Agent\models"
-set "HOST=127.0.0.1"
-set "PORT=8080"
-set "WORKSPACE=D:\AI Agent\Agent-02\workspace"
-set "EXTRA_ARGS="
+rem Local overrides for Agent-02. Leave values blank to use run.bat defaults.
+
+set "LLAMA_SERVER_EXE=D:\llama.cpp\llama-server.exe"
+set "MODELS_DIR=D:\models"
+set "DEFAULT_MODEL_ID="
+set "GPU_LAYERS="
+set "GATEWAY_PORT=18789"
+set "OPEN_LLAMA_UI=0"
+set "EXTRA_LLAMA_ARGS="
+rem set "OPENCLAW_STATE_DIR=D:\Personal\MinatoZeroFace\AI Agent\Agent-02\.openclaw"
