@@ -1,8 +1,10 @@
-node_modules/
-dist/
-.openclaw/
-run.local.bat
+.agent02-local/
+install.local.bat
+
+*.pid
+*.tmp
+*.bak
+
 docs/.mintlify/
 docs/.local/
 tmp/
-

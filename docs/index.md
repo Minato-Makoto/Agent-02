@@ -1,16 +1,13 @@
 ---
-title: Agent-02 Reset Blueprint
-description: Docs-first reset workspace. No reinstall starts until the bilingual blueprint is complete and accepted.
+title: Agent-02 Docs-Only Installer
+description: Track only the docs and installer. All installed runtime state stays under .agent02-local or the default OpenClaw user state.
 ---
 
-# Agent-02 Reset Blueprint
+# Agent-02 Docs-Only Installer
 
-This workspace is intentionally stopped at the blueprint gate.
+This workspace tracks the blueprint and the installer only.
 
-Use the bilingual blueprint pages below before any reinstall work starts:
+- English blueprint: [/en/openclaw-llama-blueprint](/en/openclaw-llama-blueprint)
+- Vietnamese blueprint: [/vi/openclaw-llama-blueprint](/vi/openclaw-llama-blueprint)
 
-- English: [/en/openclaw-llama-blueprint](/en/openclaw-llama-blueprint)
-- Vietnamese: [/vi/openclaw-llama-blueprint](/vi/openclaw-llama-blueprint)
-
-The current workspace does **not** contain a replacement OpenClaw install yet.
-
+The tracked repo does not contain a committed OpenClaw checkout, generated launchers, or runtime state.

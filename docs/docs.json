@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "Agent-02",
-  "description": "Docs-first reset blueprint for rebuilding Agent-02 around upstream OpenClaw and an external llama-server.",
+  "description": "Docs-only installer workspace for OpenClaw source mirroring and llama.cpp local provider launchers.",
   "theme": "mint",
   "colors": {
     "primary": "#1368ff",
@@ -45,4 +45,3 @@
     ]
   }
 }
-
