@@ -9,7 +9,6 @@ const DOCS_JSON_PATH = path.join(DOCS_DIR, "docs.json");
 const REQUIRED_LANGUAGES = ["en", "vi"];
 
 function walkMarkdown(dir) {
-  /** @type {string[]} */
   const files = [];
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
@@ -81,7 +80,6 @@ if (!Array.isArray(languages)) {
   process.exit(1);
 }
 
-/** @type {string[]} */
 const failures = [];
 
 for (const locale of REQUIRED_LANGUAGES) {
@@ -141,6 +139,4 @@ if (failures.length > 0) {
 }
 
 const count = collectLocaleFileSlugs("en").size;
-console.log(
-  `check-docs-parity: ok (${count} mirrored slugs, languages=${REQUIRED_LANGUAGES.join(",")})`,
-);
+console.log(`check-docs-parity: ok (${count} mirrored slugs, languages=${REQUIRED_LANGUAGES.join(",")})`);

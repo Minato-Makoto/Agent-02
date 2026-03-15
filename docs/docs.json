@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "Agent-02",
-  "description": "Windows-only local AI workstation built on the OpenClaw core and llama-server.",
+  "description": "Docs-first reset blueprint for rebuilding Agent-02 around upstream OpenClaw and an external llama-server.",
   "theme": "mint",
   "colors": {
     "primary": "#1368ff",
@@ -17,14 +17,9 @@
             "tab": "Agent-02",
             "groups": [
               {
-                "group": "Operator Guide",
+                "group": "Blueprint",
                 "pages": [
-                  "en/overview",
-                  "en/windows-setup",
-                  "en/launcher",
-                  "en/models",
-                  "en/operations",
-                  "en/troubleshooting"
+                  "en/openclaw-llama-blueprint"
                 ]
               }
             ]
@@ -38,14 +33,9 @@
             "tab": "Agent-02",
             "groups": [
               {
-                "group": "Hướng Dẫn Vận Hành",
+                "group": "Blueprint",
                 "pages": [
-                  "vi/overview",
-                  "vi/windows-setup",
-                  "vi/launcher",
-                  "vi/models",
-                  "vi/operations",
-                  "vi/troubleshooting"
+                  "vi/openclaw-llama-blueprint"
                 ]
               }
             ]
@@ -55,3 +45,4 @@
     ]
   }
 }
+

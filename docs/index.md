@@ -1,20 +1,16 @@
 ---
-title: "Agent-02 Docs"
-description: "Windows-only local AI workstation documentation in English and Vietnamese."
+title: Agent-02 Reset Blueprint
+description: Docs-first reset workspace. No reinstall starts until the bilingual blueprint is complete and accepted.
 ---
 
-# Agent-02 Documentation
+# Agent-02 Reset Blueprint
 
-Choose your language:
+This workspace is intentionally stopped at the blueprint gate.
 
-- [English](./en/overview)
-- [Tiếng Việt](./vi/overview)
+Use the bilingual blueprint pages below before any reinstall work starts:
 
-Both documentation trees cover the same operational scope:
+- English: [/en/openclaw-llama-blueprint](/en/openclaw-llama-blueprint)
+- Vietnamese: [/vi/openclaw-llama-blueprint](/vi/openclaw-llama-blueprint)
 
-- overview
-- Windows setup
-- launcher and local overrides
-- model selection
-- dashboard lifecycle
-- troubleshooting
+The current workspace does **not** contain a replacement OpenClaw install yet.
+
