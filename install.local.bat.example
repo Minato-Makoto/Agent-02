@@ -1,0 +1,30 @@
+@echo off
+rem -- Agent-02 Local Config Example ----------------------------------
+rem Copy this file to install.local.bat and replace every placeholder
+rem path with your actual paths before running the installer.
+rem
+rem This file is the user-owned runtime config surface for Agent-02.
+rem The generated launchers also re-read it every time they run.
+rem
+rem Install entrypoint:
+rem   powershell -File scripts\install-openclaw.ps1
+
+rem Required: absolute path to your OpenClaw source checkout.
+set "OPENCLAW_SOURCE_DIR=C:\path\to\openclaw-source"
+
+rem Required: absolute path to llama-server.exe.
+set "LLAMA_SERVER_EXE=C:\path\to\llama-server.exe"
+
+rem Optional: default model path. The launcher can also accept a .gguf
+rem path as its first argument, or prompt you if neither is provided.
+set "MODEL_PATH="
+
+rem Optional values with defaults shown.
+set "LLAMA_SERVER_API_KEY=agent02-local"
+set "OPENCLAW_PORT=18789"
+set "OPENCLAW_NO_OPEN=0"
+
+rem Extra llama-server flags are allowed, but do not override:
+rem -m, --host, --port, --api-key, or --api-key-file
+set "EXTRA_LLAMA_ARGS="
+

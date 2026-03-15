@@ -1,0 +1,5 @@
+interface:
+  display_name: "Install OpenClaw"
+  short_description: "Install OpenClaw with official flows"
+  default_prompt: "Use $install-openclaw to install, reinstall, or reconnect OpenClaw using the official gateway, dashboard, and provider setup flows."
+

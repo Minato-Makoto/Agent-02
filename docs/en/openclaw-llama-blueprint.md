@@ -1,29 +1,27 @@
 ---
-title: Agent-02 Windows Blueprint for OpenClaw and llama.cpp
-description: Windows-only blueprint for running Agent-02 with official OpenClaw flows and llama.cpp as an external OpenAI-compatible provider.
+title: Agent-02 Installer Blueprint for OpenClaw and llama.cpp
+description: Windows-only blueprint for the docs-only installer that mirrors OpenClaw source and generates thin launchers for llama-server.
 ---
 
-# Agent-02 Windows Blueprint for OpenClaw and llama.cpp
+# Agent-02 Installer Blueprint for OpenClaw and llama.cpp
 
 ## Goal
 
-This blueprint rebuilds Agent-02 on native Windows with one clear split:
+Agent-02 is a docs-only installer workspace with one clear split:
 
-- OpenClaw remains the only gateway, dashboard, session, channel, node, and tool control plane.
-- `llama-server.exe` from `llama.cpp` remains an external OpenAI-compatible model server.
-- Provider wiring is done through OpenClaw's built-in setup flow with an explicit base URL, API key, and model id.
-- No custom launcher is allowed to preselect models, inject provider state, or rewrite OpenClaw config on behalf of the user.
+- The tracked repo contains only docs, skills, and the installer script.
+- The installer mirrors a user-owned OpenClaw source checkout into `.agent02-local/openclaw/`, builds it, and generates thin launchers.
+- `llama-server.exe` from llama.cpp is treated as an external OpenAI-compatible model server on a fixed port (`127.0.0.1:8420`).
+- Provider setup remains manual inside OpenClaw. The launcher prints connection details but never writes provider config.
 
 ## Install path chosen
 
-Agent-02 should use the official Windows PowerShell install path for OpenClaw:
+Source-mirror OpenClaw, not the public `install.ps1` installer:
 
-1. install OpenClaw with `install.ps1`
-2. run `openclaw onboard --flow manual --install-daemon`
-3. run `llama-server.exe` as a separate Windows process
-4. connect OpenClaw to `llama-server.exe` through OpenClaw's own provider flow
-
-This keeps Windows service/bootstrap behavior, gateway auth, dashboard access, provider setup, and future channel or node setup inside upstream OpenClaw instead of inside repo-local scripts.
+1. User fills `install.local.bat` with paths to their existing OpenClaw source checkout and `llama-server.exe`.
+2. User runs `scripts/install-openclaw.ps1`.
+3. The script validates prerequisites, mirrors and builds OpenClaw, then generates launchers and local docs under `.agent02-local/`.
+4. Services are never started during install.
 
 ## Ownership boundary
 
@@ -40,240 +38,152 @@ This keeps Windows service/bootstrap behavior, gateway auth, dashboard access, p
 ### llama.cpp owns
 
 - loading one or more GGUF models
-- exposing `/v1/models`
+- exposing `/v1/models` (requires `Authorization: Bearer <key>`)
 - serving `/v1/chat/completions`
-- enforcing the API key used by the local provider
+- exposing `/health` (public, no auth required)
+- enforcing the API key for all other endpoints
 
-### The repo must not own
+### The repo does not own
 
 - default provider API keys
 - default model ids
 - hidden provider catalogs
-- launcher-generated writes into `%USERPROFILE%\\.openclaw\\openclaw.json`
-- launcher-generated writes into agent-local `models.json`
+- writes into `%USERPROFILE%\.openclaw\openclaw.json`
+- writes into agent-local `models.json`
 
-## Windows target layout
+## Config surface
 
-Use a normal Windows user profile and keep OpenClaw state in its default home unless isolation is required later.
+All user config lives in `install.local.bat` (git-ignored). A tracked example is provided at `install.local.bat.example`.
+The generated launchers re-read `install.local.bat` at runtime, so changing
+runtime values does not require reinstalling.
 
-- OpenClaw config: `%USERPROFILE%\\.openclaw\\openclaw.json`
-- OpenClaw workspace: `%USERPROFILE%\\.openclaw\\workspace\\`
-- OpenClaw credentials and runtime state: `%USERPROFILE%\\.openclaw\\`
-- Local models: `D:\\Models\\`
-- Optional source checkout for `llama.cpp`: `D:\\src\\llama.cpp\\`
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `OPENCLAW_SOURCE_DIR` | Yes | — | Absolute path to OpenClaw source checkout |
+| `LLAMA_SERVER_EXE` | Yes | — | Absolute path to `llama-server.exe` |
+| `MODEL_PATH` | No | — | Default `.gguf` path; launcher can also accept this as arg 1 or prompt |
+| `LLAMA_SERVER_API_KEY` | No | `agent02-local` | Bearer token for llama-server auth |
+| `OPENCLAW_PORT` | No | `18789` | Port for the OpenClaw gateway |
+| `OPENCLAW_NO_OPEN` | No | `0` | Set to `1` to suppress auto-opening the dashboard |
+| `EXTRA_LLAMA_ARGS` | No | — | Extra flags for llama-server (must not override `-m`, `--host`, `--port`, `--api-key`) |
 
-No repo-local runtime state is required for the standard install.
+## Install flow
 
-## Step 1: Install OpenClaw on Windows
+### Step 1: Fill config
 
-Open a normal PowerShell session and run the official installer:
+Copy `install.local.bat.example` to `install.local.bat` and set your paths:
 
-```powershell
-iwr -useb https://openclaw.ai/install.ps1 | iex
-openclaw doctor
+```bat
+set "OPENCLAW_SOURCE_DIR=D:\AI-Agent\openclaw-2026.3.12"
+set "LLAMA_SERVER_EXE=D:\AI-Agent\llama.cpp\llama-server.exe"
 ```
 
-Expected result:
-
-- OpenClaw CLI is on `PATH`
-- Node.js is available if the installer had to bootstrap it
-- `openclaw doctor` reports a usable local install
-
-## Step 2: Create the local Agent-02 gateway
-
-Run the onboarding flow in manual mode so gateway auth and startup behavior stay explicit:
+### Step 2: Run the installer
 
 ```powershell
-openclaw onboard --flow manual --install-daemon
+powershell -File scripts\install-openclaw.ps1
 ```
 
-During onboarding, keep these Windows-local decisions:
+The installer:
 
-- gateway mode: local
-- bind address: loopback only
-- auth: token enabled
-- daemon install: enabled
-- workspace: keep the default OpenClaw workspace unless you have a separate Windows profile for Agent-02
+1. Validates Node.js >= 22, pnpm (or corepack pnpm), the OpenClaw source shape, and the llama-server binary.
+2. Rejects reserved flags inside `EXTRA_LLAMA_ARGS` (`-m`, `--host`, `--port`, `--api-key`, `--api-key-file`).
+3. Runs `robocopy /MIR` from `OPENCLAW_SOURCE_DIR` to `.agent02-local/openclaw/` with excludes for `.git`, `node_modules`, `dist`, `.openclaw`, caches, temp files, and logs.
+4. Runs `pnpm install` in the mirror.
+5. Runs `pnpm openclaw setup` only when `%USERPROFILE%\.openclaw\openclaw.json` is missing.
+6. Runs `pnpm build`.
+7. Generates launchers in `.agent02-local/launcher/` and usage docs in `.agent02-local/docs/`.
 
-If the wizard offers model setup before `llama-server.exe` is ready, skip that part for now and return to it after Step 5.
+### What install does NOT do
 
-After onboarding, verify the service side first:
+- Start llama-server or the OpenClaw gateway
+- Require `MODEL_PATH` to be set
+- Write any OpenClaw provider config
+- Create runtime state directories (those are created lazily on first run)
 
-```powershell
-openclaw gateway status
-openclaw dashboard
+## Runtime flow
+
+### Starting
+
+Run the generated launcher:
+
+```bat
+.agent02-local\launcher\run-agent02.bat D:\Models\your-model.gguf
 ```
 
-`openclaw dashboard` should print or open the local Control UI URL for the gateway you just created.
+Model path resolution:
+1. First argument to `run-agent02.bat`
+2. Fall back to `MODEL_PATH` from `install.local.bat`
+3. Prompt the user if neither is available
 
-## Step 3: Install llama.cpp on Windows
+The launcher:
+1. Re-reads `install.local.bat` at runtime.
+2. Starts `llama-server.exe -m <gguf> --host 127.0.0.1 --port 8420 --api-key <key> [EXTRA_LLAMA_ARGS]`
+3. Writes runtime PID files, metadata, and logs only under `.agent02-local/runtime/`
+4. Polls `/health` until the server reports healthy (up to 120 seconds)
+5. Calls authenticated `GET /v1/models` and requires at least one model id
+6. Starts `pnpm openclaw gateway --port <OPENCLAW_PORT> --bind loopback`
+7. Uses `pnpm openclaw dashboard` / `pnpm openclaw dashboard --no-open` to print or open the dashboard URL
+8. Prints the base URL, API key, model id(s), dashboard URL, and log paths
 
-### Recommended path: prebuilt Windows package
+### Stopping
 
-Use the official Windows package first:
-
-```powershell
-winget install llama.cpp
-Get-Command llama-server
+```bat
+.agent02-local\launcher\stop-agent02.bat
 ```
 
-### Optional path: build from source on Windows
+Kills only the tracked process trees rooted at the stored PID/metadata in `.agent02-local/runtime/`.
 
-Use this only if you need a specific backend or you want to pin a source checkout:
+## Provider setup
 
-```powershell
-git clone https://github.com/ggml-org/llama.cpp.git D:\src\llama.cpp
-cd D:\src\llama.cpp
-cmake -B build
-cmake --build build --config Release
-```
+After the launcher prints the connection details, register the model inside OpenClaw manually:
 
-For a GPU build, add the Windows backend you actually use, such as `-DGGML_CUDA=ON` or `-DGGML_VULKAN=ON`, before the build step.
+| Field | Value |
+|---|---|
+| Base URL | `http://127.0.0.1:8420/v1` |
+| API key | the configured `LLAMA_SERVER_API_KEY` |
+| Model id | the id(s) printed at startup |
 
-## Step 4: Prepare the local model
+You can do this through:
+- The OpenClaw dashboard (Control UI)
+- `pnpm openclaw configure`
+- `pnpm openclaw onboard`
 
-Place the GGUF model that Agent-02 should use under a normal Windows path, for example:
-
-```powershell
-New-Item -ItemType Directory -Force D:\Models | Out-Null
-```
-
-Recommended model rules:
-
-- use an instruct or chat GGUF, not a raw base model
-- prefer a model that already includes the correct chat template
-- if your chosen model needs an explicit template, pass the matching llama.cpp template flags when you start the server
-
-## Step 5: Start `llama-server.exe`
-
-Keep the model server local and authenticated. Example:
-
-```powershell
-$env:LLAMA_SERVER_API_KEY = "agent02-local"
-$ModelPath = "D:\Models\qwen2.5-coder-7b-instruct-q4_k_m.gguf"
-
-llama-server.exe `
-  -m $ModelPath `
-  --host 127.0.0.1 `
-  --port 8080 `
-  --api-key $env:LLAMA_SERVER_API_KEY
-```
-
-Validate the provider surface before touching OpenClaw model settings:
-
-```powershell
-$headers = @{ Authorization = "Bearer $env:LLAMA_SERVER_API_KEY" }
-Invoke-RestMethod -Headers $headers -Uri "http://127.0.0.1:8080/v1/models"
-```
-
-Use the exact returned model id in the next step.
-
-## Step 6: Register `llama-server.exe` inside OpenClaw
-
-Do not hand-edit OpenClaw config unless you are recovering from a broken install. Use OpenClaw's own setup flow.
-
-Recommended options:
-
-- reopen `openclaw onboard` if you intentionally skipped model setup earlier
-- or run `openclaw configure` and complete the model or provider section there
-- or open the Control UI config screen from the dashboard and use the built-in provider setup
-
-The values must be explicit:
-
-- provider type: self-hosted OpenAI-compatible or vLLM-style explicit provider setup
-- base URL: `http://127.0.0.1:8080/v1`
-- API key: the same value used in `llama-server.exe --api-key`
-- model id: the exact id returned by `GET /v1/models`
-
-Once the provider exists, confirm the model is visible to OpenClaw:
-
-```powershell
-openclaw models list
-```
-
-If you want Agent-02 to prefer this model by default, set it with the exact provider and model id that OpenClaw exposes:
-
-```powershell
-openclaw models set <provider>/<model-id>
-```
-
-Replace `<provider>/<model-id>` with the exact value shown by `openclaw models list`.
-
-## Step 7: Use OpenClaw as the only front door
-
-After provider setup, use OpenClaw features through OpenClaw, not by sending traffic directly to `llama-server.exe`.
-
-### Control UI
-
-- launch with `openclaw dashboard`
-- sign in with the gateway token if prompted
-- verify chat responses stream through the local provider
-
-### Channels
-
-- log into supported channels with `openclaw channels login`
-- keep all channel credentials in OpenClaw state, never in llama.cpp launch scripts
-
-### Nodes and devices
-
-- inspect device state with `openclaw devices list`
-- approve pending devices with `openclaw devices approve <id>`
-- inspect node connectivity with `openclaw nodes status`
-
-### Web tools and plugins
-
-- configure web search or browser tooling with `openclaw configure --section web`
-- enable OpenProse only through OpenClaw plugins: `openclaw plugins enable open-prose`
-- restart the gateway after plugin changes if OpenClaw requests it
-
-## Full-feature expectation
-
-Using `llama-server.exe` as the local model backend must not reduce OpenClaw to a thin chat shell.
-
-The supported expectation for Agent-02 is:
-
-- local model inference comes from llama.cpp
-- gateway auth and dashboard stay in OpenClaw
-- sessions, routing, and tools stay in OpenClaw
-- channel integrations stay in OpenClaw
-- nodes, approvals, and device trust stay in OpenClaw
-- model selection stays in OpenClaw after the provider is registered
+Existing cloud providers in OpenClaw remain untouched because the launcher does not rewrite OpenClaw config.
 
 ## Forbidden drift
 
 Do not reintroduce any of the following:
 
-- a repo-local launcher that injects `VLLM_API_KEY` or equivalent provider state behind OpenClaw's back
+- a launcher that injects `VLLM_API_KEY` or equivalent provider state behind OpenClaw's back
 - `MODEL_PATH`, `DEFAULT_MODEL_ID`, or `MODELS_DIR` as policy layers that select models for OpenClaw
 - auto-generated writes into OpenClaw config from repo scripts
 - direct channel, node, or dashboard traffic to `llama-server.exe`
 - storing the gateway token inside the llama.cpp startup command
 - binding either service to a public interface before auth is intentionally configured
+- generated launchers that call back into the installer
 
 ## Validation checklist
 
-Run this checklist in order:
-
-1. `openclaw doctor` passes.
-2. `openclaw gateway status` shows the local gateway is installed and reachable.
-3. `openclaw dashboard` opens the local Control UI URL.
-4. `Invoke-RestMethod http://127.0.0.1:8080/v1/models` succeeds with the llama.cpp API key.
-5. `openclaw models list` shows the configured local provider model.
-6. `openclaw models set ...` succeeds for the intended Agent-02 model.
-7. A real chat in Control UI streams a response from the local model.
-8. If channels are required, `openclaw channels login` succeeds and channel activity still routes through OpenClaw.
-9. If nodes or devices are required, `openclaw devices list` and `openclaw nodes status` show healthy state.
-10. If web tools or OpenProse are required, they are enabled through `openclaw configure` or `openclaw plugins`, then rechecked from the dashboard.
+1. `scripts/install-openclaw.ps1` completes without errors.
+2. `.agent02-local/openclaw/` contains a built OpenClaw mirror.
+3. `.agent02-local/launcher/run-agent02.bat` and `stop-agent02.bat` exist.
+4. `.agent02-local/docs/usage.en.md` and `usage.vi.md` exist.
+5. `run-agent02.bat <model.gguf>` starts llama-server and prints `/health` ok.
+6. Authenticated `/v1/models` on port 8420 returns the loaded model id.
+7. OpenClaw gateway starts on the configured port.
+8. Printed values exactly match `http://127.0.0.1:8420/v1`, the API key, and the model id(s).
+9. Manual provider setup in OpenClaw works with the printed values.
+10. Existing cloud models remain untouched.
+11. `stop-agent02.bat` kills only tracked PIDs.
+12. `node scripts/check-docs-parity.mjs` passes.
 
 ## Source anchors
 
 OpenClaw references:
 
-- Getting started: https://docs.openclaw.ai/start/getting-started
 - Source setup: https://docs.openclaw.ai/start/setup
 - Gateway CLI: https://docs.openclaw.ai/cli/gateway
-- Onboarding CLI: https://docs.openclaw.ai/cli/onboard
-- Configure CLI: https://docs.openclaw.ai/cli/configure
 - Control UI: https://docs.openclaw.ai/web/control-ui
 - vLLM provider: https://docs.openclaw.ai/providers/vllm
 - Source anchor: `src/commands/self-hosted-provider-setup.ts`
@@ -282,6 +192,13 @@ OpenClaw references:
 
 llama.cpp references:
 
-- Install on Windows: https://github.com/ggml-org/llama.cpp/blob/master/docs/install.md
-- Build on Windows: https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md
-- Server API: https://github.com/ggml-org/llama.cpp/blob/master/examples/server/README.md
+- Server guide: https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md
+- Build guide: https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md
+- REST API changelog: https://github.com/ggml-org/llama.cpp/issues/9291
+
+Key llama-server details (from `llama-knowledge` skill):
+
+- `--api-key` enables bearer auth for all endpoints except `/health`
+- `/health` is always public
+- `/v1/models` requires `Authorization: Bearer <key>` when `--api-key` is set
+- The fixed port `8420` is an Agent-02 convention, not a llama.cpp default

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Llama Knowledge"
+  short_description: "Official llama.cpp docs workflow"
+  default_prompt: "Use $llama-knowledge to answer or implement llama.cpp tasks with the current official upstream docs and source behavior."

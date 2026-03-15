@@ -1,29 +1,27 @@
 ---
-title: Blueprint Windows cho Agent-02 với OpenClaw và llama.cpp
-description: Blueprint chỉ dành cho Windows để chạy Agent-02 bằng flow chính thức của OpenClaw và `llama.cpp` như một provider OpenAI-compatible bên ngoài.
+title: Blueprint Installer Agent-02 cho OpenClaw và llama.cpp
+description: Blueprint chỉ dành cho Windows cho docs-only installer mirror source OpenClaw và tạo thin launcher cho llama-server.
 ---
 
-# Blueprint Windows cho Agent-02 với OpenClaw và llama.cpp
+# Blueprint Installer Agent-02 cho OpenClaw và llama.cpp
 
 ## Mục tiêu
 
-Blueprint này dựng lại Agent-02 trên Windows native với một ranh giới rõ ràng:
+Agent-02 là workspace docs-only installer với một ranh giới rõ ràng:
 
-- OpenClaw tiếp tục là control plane duy nhất cho gateway, dashboard, session, channel, node và tools.
-- `llama-server.exe` của `llama.cpp` chỉ là model server OpenAI-compatible chạy bên ngoài.
-- Việc nối provider phải đi qua flow setup có sẵn của OpenClaw với base URL, API key và model id tường minh.
-- Không được có custom launcher tự chọn model, tự inject provider state, hoặc tự ghi config OpenClaw thay cho user.
+- Repo tracked chỉ chứa docs, skills, và script installer.
+- Installer mirror source checkout OpenClaw do user sở hữu vào `.agent02-local/openclaw/`, build nó, rồi tạo thin launcher.
+- `llama-server.exe` của llama.cpp được coi là model server OpenAI-compatible bên ngoài trên port cố định (`127.0.0.1:8420`).
+- Việc setup provider luôn là thủ công trong OpenClaw. Launcher in ra thông tin kết nối nhưng không bao giờ ghi provider config.
 
 ## Install path được chọn
 
-Agent-02 phải đi theo flow cài đặt OpenClaw chính thức trên Windows PowerShell:
+Source-mirror OpenClaw, không phải `install.ps1` công khai:
 
-1. cài OpenClaw bằng `install.ps1`
-2. chạy `openclaw onboard --flow manual --install-daemon`
-3. chạy `llama-server.exe` như một process Windows riêng
-4. nối OpenClaw với `llama-server.exe` qua chính flow provider của OpenClaw
-
-Cách này giữ toàn bộ hành vi service khởi động, gateway auth, dashboard, provider setup, và các phần mở rộng sau này của OpenClaw ở trong upstream OpenClaw thay vì dồn vào script nội bộ của repo.
+1. User điền `install.local.bat` với đường dẫn đến OpenClaw source checkout và `llama-server.exe` hiện có.
+2. User chạy `scripts/install-openclaw.ps1`.
+3. Script validate prerequisites, mirror và build OpenClaw, rồi tạo launcher và docs local dưới `.agent02-local/`.
+4. Không bao giờ khởi động service trong lúc install.
 
 ## Boundary ownership
 
@@ -40,240 +38,152 @@ Cách này giữ toàn bộ hành vi service khởi động, gateway auth, dashb
 ### llama.cpp sở hữu
 
 - nạp một hoặc nhiều model GGUF
-- expose `/v1/models`
+- expose `/v1/models` (cần `Authorization: Bearer <key>`)
 - phục vụ `/v1/chat/completions`
-- enforce API key dùng cho local provider
+- expose `/health` (công khai, không cần auth)
+- enforce API key cho tất cả endpoint khác
 
 ### Repo không được sở hữu
 
 - API key provider mặc định
 - model id mặc định
 - catalog provider ẩn
-- các lần ghi tự động vào `%USERPROFILE%\\.openclaw\\openclaw.json`
-- các lần ghi tự động vào `models.json` ở agent local
+- ghi vào `%USERPROFILE%\.openclaw\openclaw.json`
+- ghi vào `models.json` ở agent local
 
-## Layout mục tiêu trên Windows
+## Config surface
 
-Dùng user profile Windows bình thường và giữ state của OpenClaw ở home mặc định, trừ khi sau này cần tách riêng.
+Toàn bộ config user nằm trong `install.local.bat` (git-ignored). Mẫu tracked có tại `install.local.bat.example`.
+Launcher được tạo sẽ đọc lại `install.local.bat` ở runtime, nên khi đổi
+giá trị runtime bạn không cần cài lại.
 
-- Config OpenClaw: `%USERPROFILE%\\.openclaw\\openclaw.json`
-- Workspace OpenClaw: `%USERPROFILE%\\.openclaw\\workspace\\`
-- Credentials và runtime state của OpenClaw: `%USERPROFILE%\\.openclaw\\`
-- Model local: `D:\\Models\\`
-- Source checkout tùy chọn cho `llama.cpp`: `D:\\src\\llama.cpp\\`
+| Biến | Bắt buộc | Mặc định | Mô tả |
+|---|---|---|---|
+| `OPENCLAW_SOURCE_DIR` | Có | — | Đường dẫn tuyệt đối đến OpenClaw source checkout |
+| `LLAMA_SERVER_EXE` | Có | — | Đường dẫn tuyệt đối đến `llama-server.exe` |
+| `MODEL_PATH` | Không | — | Đường dẫn `.gguf` mặc định; launcher cũng nhận qua arg 1 hoặc hỏi user |
+| `LLAMA_SERVER_API_KEY` | Không | `agent02-local` | Bearer token cho auth llama-server |
+| `OPENCLAW_PORT` | Không | `18789` | Port cho OpenClaw gateway |
+| `OPENCLAW_NO_OPEN` | Không | `0` | Đặt `1` để không tự mở dashboard |
+| `EXTRA_LLAMA_ARGS` | Không | — | Cờ thêm cho llama-server (không được ghi đè `-m`, `--host`, `--port`, `--api-key`) |
 
-Bản cài chuẩn không cần runtime state nằm trong repo.
+## Flow cài đặt
 
-## Bước 1: Cài OpenClaw trên Windows
+### Bước 1: Điền config
 
-Mở PowerShell bình thường và chạy installer chính thức:
+Copy `install.local.bat.example` sang `install.local.bat` và đặt đường dẫn:
 
-```powershell
-iwr -useb https://openclaw.ai/install.ps1 | iex
-openclaw doctor
+```bat
+set "OPENCLAW_SOURCE_DIR=D:\AI-Agent\openclaw-2026.3.12"
+set "LLAMA_SERVER_EXE=D:\AI-Agent\llama.cpp\llama-server.exe"
 ```
 
-Kết quả mong đợi:
-
-- CLI của OpenClaw có trên `PATH`
-- Node.js có sẵn nếu installer phải bootstrap nó
-- `openclaw doctor` báo bản cài local dùng được
-
-## Bước 2: Tạo gateway local cho Agent-02
-
-Chạy onboarding ở manual mode để gateway auth và hành vi startup luôn tường minh:
+### Bước 2: Chạy installer
 
 ```powershell
-openclaw onboard --flow manual --install-daemon
+powershell -File scripts\install-openclaw.ps1
 ```
 
-Trong lúc onboarding, giữ các quyết định sau ở dạng Windows-local:
+Installer sẽ:
 
-- gateway mode: local
-- bind address: chỉ loopback
-- auth: bật token
-- daemon install: bật
-- workspace: giữ workspace mặc định của OpenClaw, trừ khi bạn có Windows profile riêng cho Agent-02
+1. Validate Node.js >= 22, pnpm (hoặc corepack pnpm), hình dáng OpenClaw source, và binary llama-server.
+2. Từ chối các cờ reserved nằm trong `EXTRA_LLAMA_ARGS` (`-m`, `--host`, `--port`, `--api-key`, `--api-key-file`).
+3. Chạy `robocopy /MIR` từ `OPENCLAW_SOURCE_DIR` vào `.agent02-local/openclaw/` với các loại trừ `.git`, `node_modules`, `dist`, `.openclaw`, cache, file tạm và log.
+4. Chạy `pnpm install` trong bản mirror.
+5. Chạy `pnpm openclaw setup` chỉ khi `%USERPROFILE%\.openclaw\openclaw.json` chưa tồn tại.
+6. Chạy `pnpm build`.
+7. Tạo launcher trong `.agent02-local/launcher/` và docs sử dụng trong `.agent02-local/docs/`.
 
-Nếu wizard hỏi phần model setup trước khi `llama-server.exe` sẵn sàng, hãy bỏ qua phần đó trước rồi quay lại sau Bước 5.
+### Install KHÔNG làm gì
 
-Sau khi onboarding xong, kiểm tra service trước:
+- Khởi động llama-server hoặc OpenClaw gateway
+- Yêu cầu `MODEL_PATH` phải được đặt
+- Ghi bất kỳ provider config nào của OpenClaw
+- Tạo thư mục runtime state (được tạo lazy khi chạy lần đầu)
 
-```powershell
-openclaw gateway status
-openclaw dashboard
+## Flow runtime
+
+### Khởi động
+
+Chạy launcher đã được tạo:
+
+```bat
+.agent02-local\launcher\run-agent02.bat D:\Models\model-cua-ban.gguf
 ```
 
-`openclaw dashboard` phải in ra hoặc mở đúng URL Control UI local của gateway vừa tạo.
+Cách xác định model path:
+1. Tham số đầu tiên của `run-agent02.bat`
+2. Fallback về `MODEL_PATH` từ `install.local.bat`
+3. Hỏi user nếu cả hai đều không có
 
-## Bước 3: Cài llama.cpp trên Windows
+Launcher sẽ:
+1. Đọc lại `install.local.bat` ở runtime.
+2. Khởi động `llama-server.exe -m <gguf> --host 127.0.0.1 --port 8420 --api-key <key> [EXTRA_LLAMA_ARGS]`
+3. Ghi PID, metadata, và log runtime chỉ dưới `.agent02-local/runtime/`
+4. Poll `/health` cho đến khi server báo healthy (tối đa 120 giây)
+5. Gọi authenticated `GET /v1/models` và yêu cầu có ít nhất một model id
+6. Khởi động `pnpm openclaw gateway --port <OPENCLAW_PORT> --bind loopback`
+7. Dùng `pnpm openclaw dashboard` / `pnpm openclaw dashboard --no-open` để in hoặc mở dashboard URL
+8. In ra base URL, API key, model id, dashboard URL, và đường dẫn log
 
-### Cách khuyến nghị: dùng package Windows dựng sẵn
+### Dừng
 
-Dùng package Windows chính thức trước:
-
-```powershell
-winget install llama.cpp
-Get-Command llama-server
+```bat
+.agent02-local\launcher\stop-agent02.bat
 ```
 
-### Cách tùy chọn: build từ source trên Windows
+Chỉ tắt process tree gốc từ PID/metadata đang được theo dõi trong `.agent02-local/runtime/`.
 
-Chỉ dùng cách này nếu bạn cần backend cụ thể hoặc muốn pin một source checkout:
+## Setup provider
 
-```powershell
-git clone https://github.com/ggml-org/llama.cpp.git D:\src\llama.cpp
-cd D:\src\llama.cpp
-cmake -B build
-cmake --build build --config Release
-```
+Sau khi launcher in ra thông tin kết nối, đăng ký model trong OpenClaw thủ công:
 
-Nếu build cho GPU, thêm đúng backend Windows bạn dùng, ví dụ `-DGGML_CUDA=ON` hoặc `-DGGML_VULKAN=ON`, trước bước build.
+| Trường | Giá trị |
+|---|---|
+| Base URL | `http://127.0.0.1:8420/v1` |
+| API key | `LLAMA_SERVER_API_KEY` đã cấu hình |
+| Model id | id được in ra lúc khởi động |
 
-## Bước 4: Chuẩn bị model local
+Bạn có thể làm qua:
+- Dashboard OpenClaw (Control UI)
+- `pnpm openclaw configure`
+- `pnpm openclaw onboard`
 
-Đặt GGUF mà Agent-02 sẽ dùng vào một path Windows bình thường, ví dụ:
-
-```powershell
-New-Item -ItemType Directory -Force D:\Models | Out-Null
-```
-
-Quy tắc chọn model:
-
-- dùng GGUF dạng instruct hoặc chat, không dùng base model thô
-- ưu tiên model đã có sẵn chat template đúng
-- nếu model cần template tường minh, truyền đúng flag template của llama.cpp khi khởi động server
-
-## Bước 5: Chạy `llama-server.exe`
-
-Giữ model server ở local và có auth. Ví dụ:
-
-```powershell
-$env:LLAMA_SERVER_API_KEY = "agent02-local"
-$ModelPath = "D:\Models\qwen2.5-coder-7b-instruct-q4_k_m.gguf"
-
-llama-server.exe `
-  -m $ModelPath `
-  --host 127.0.0.1 `
-  --port 8080 `
-  --api-key $env:LLAMA_SERVER_API_KEY
-```
-
-Xác minh surface của provider trước khi chạm vào model settings của OpenClaw:
-
-```powershell
-$headers = @{ Authorization = "Bearer $env:LLAMA_SERVER_API_KEY" }
-Invoke-RestMethod -Headers $headers -Uri "http://127.0.0.1:8080/v1/models"
-```
-
-Phải dùng đúng model id trả về ở bước tiếp theo.
-
-## Bước 6: Đăng ký `llama-server.exe` vào OpenClaw
-
-Không hand-edit config của OpenClaw trừ khi đang khôi phục một bản cài hỏng. Hãy dùng flow setup có sẵn của OpenClaw.
-
-Các lựa chọn nên dùng:
-
-- chạy lại `openclaw onboard` nếu trước đó bạn cố ý bỏ qua phần model setup
-- hoặc chạy `openclaw configure` và hoàn tất phần model hoặc provider ở đó
-- hoặc mở màn hình config trong Control UI từ dashboard và dùng flow provider có sẵn
-
-Các giá trị phải luôn tường minh:
-
-- loại provider: self-hosted OpenAI-compatible hoặc flow explicit provider kiểu vLLM
-- base URL: `http://127.0.0.1:8080/v1`
-- API key: đúng giá trị đang dùng ở `llama-server.exe --api-key`
-- model id: đúng id mà `GET /v1/models` trả về
-
-Sau khi provider xuất hiện, xác nhận model nhìn thấy được từ phía OpenClaw:
-
-```powershell
-openclaw models list
-```
-
-Nếu muốn Agent-02 ưu tiên model này mặc định, hãy đặt đúng cặp provider và model id mà OpenClaw expose:
-
-```powershell
-openclaw models set <provider>/<model-id>
-```
-
-Thay `<provider>/<model-id>` bằng đúng giá trị đang hiện ra trong `openclaw models list`.
-
-## Bước 7: Chỉ dùng OpenClaw làm front door
-
-Sau khi setup provider xong, mọi tính năng của OpenClaw phải đi qua OpenClaw, không đi thẳng vào `llama-server.exe`.
-
-### Control UI
-
-- mở bằng `openclaw dashboard`
-- đăng nhập bằng gateway token nếu được hỏi
-- xác nhận chat stream câu trả lời qua local provider
-
-### Channels
-
-- đăng nhập channel được hỗ trợ bằng `openclaw channels login`
-- giữ toàn bộ channel credentials trong state của OpenClaw, không để trong script khởi động llama.cpp
-
-### Nodes và devices
-
-- xem trạng thái device bằng `openclaw devices list`
-- approve device chờ bằng `openclaw devices approve <id>`
-- xem kết nối node bằng `openclaw nodes status`
-
-### Web tools và plugins
-
-- cấu hình web search hoặc browser tooling bằng `openclaw configure --section web`
-- chỉ bật OpenProse qua plugin của OpenClaw: `openclaw plugins enable open-prose`
-- restart gateway nếu OpenClaw yêu cầu sau khi đổi plugin
-
-## Kỳ vọng đầy đủ tính năng
-
-Việc dùng `llama-server.exe` làm local model backend không được biến OpenClaw thành một vỏ chat mỏng.
-
-Kỳ vọng được hỗ trợ cho Agent-02 là:
-
-- suy luận model local đến từ llama.cpp
-- gateway auth và dashboard vẫn ở OpenClaw
-- session, routing và tools vẫn ở OpenClaw
-- channel integrations vẫn ở OpenClaw
-- nodes, approval và trust của device vẫn ở OpenClaw
-- model selection vẫn ở OpenClaw sau khi provider đã được đăng ký
+Các provider cloud hiện có trong OpenClaw không bị ảnh hưởng vì launcher không ghi lại config OpenClaw.
 
 ## Drift bị cấm
 
 Không được đưa lại bất kỳ điều nào sau đây:
 
-- launcher nội bộ repo tự inject `VLLM_API_KEY` hoặc provider state tương đương sau lưng OpenClaw
-- `MODEL_PATH`, `DEFAULT_MODEL_ID`, hoặc `MODELS_DIR` như policy layer để chọn model cho OpenClaw
+- launcher tự inject `VLLM_API_KEY` hoặc provider state tương đương sau lưng OpenClaw
+- `MODEL_PATH`, `DEFAULT_MODEL_ID`, hoặc `MODELS_DIR` như policy layer chọn model cho OpenClaw
 - script trong repo tự ghi config vào OpenClaw
 - channel, node, hoặc dashboard đi trực tiếp tới `llama-server.exe`
 - nhét gateway token vào lệnh startup của llama.cpp
 - bind bất kỳ service nào ra public interface trước khi auth được cấu hình có chủ đích
+- launcher đã tạo gọi ngược lại installer
 
 ## Checklist xác minh
 
-Chạy checklist này theo đúng thứ tự:
-
-1. `openclaw doctor` pass.
-2. `openclaw gateway status` cho thấy local gateway đã được cài và truy cập được.
-3. `openclaw dashboard` mở đúng URL Control UI local.
-4. `Invoke-RestMethod http://127.0.0.1:8080/v1/models` chạy được với API key của llama.cpp.
-5. `openclaw models list` thấy model local provider đã cấu hình.
-6. `openclaw models set ...` chạy được với model Agent-02 mong muốn.
-7. Một cuộc chat thật trong Control UI stream được phản hồi từ local model.
-8. Nếu cần channels, `openclaw channels login` chạy được và traffic của channel vẫn đi qua OpenClaw.
-9. Nếu cần nodes hoặc devices, `openclaw devices list` và `openclaw nodes status` cho ra trạng thái khỏe.
-10. Nếu cần web tools hoặc OpenProse, hãy bật bằng `openclaw configure` hoặc `openclaw plugins`, rồi xác minh lại từ dashboard.
+1. `scripts/install-openclaw.ps1` hoàn tất không lỗi.
+2. `.agent02-local/openclaw/` chứa bản mirror OpenClaw đã build.
+3. `.agent02-local/launcher/run-agent02.bat` và `stop-agent02.bat` tồn tại.
+4. `.agent02-local/docs/usage.en.md` và `usage.vi.md` tồn tại.
+5. `run-agent02.bat <model.gguf>` khởi động llama-server và in `/health` ok.
+6. Authenticated `/v1/models` trên port 8420 trả về model id đã load.
+7. OpenClaw gateway khởi động trên port đã cấu hình.
+8. Giá trị in ra khớp chính xác `http://127.0.0.1:8420/v1`, API key, và model id.
+9. Setup provider thủ công trong OpenClaw hoạt động với giá trị in ra.
+10. Các model cloud hiện có không bị ảnh hưởng.
+11. `stop-agent02.bat` chỉ tắt PID đang theo dõi.
+12. `node scripts/check-docs-parity.mjs` pass.
 
 ## Mốc nguồn tham chiếu
 
 Tài liệu OpenClaw:
 
-- Getting started: https://docs.openclaw.ai/start/getting-started
 - Source setup: https://docs.openclaw.ai/start/setup
 - Gateway CLI: https://docs.openclaw.ai/cli/gateway
-- Onboarding CLI: https://docs.openclaw.ai/cli/onboard
-- Configure CLI: https://docs.openclaw.ai/cli/configure
 - Control UI: https://docs.openclaw.ai/web/control-ui
 - vLLM provider: https://docs.openclaw.ai/providers/vllm
 - Mốc source: `src/commands/self-hosted-provider-setup.ts`
@@ -282,6 +192,13 @@ Tài liệu OpenClaw:
 
 Tài liệu llama.cpp:
 
-- Cài trên Windows: https://github.com/ggml-org/llama.cpp/blob/master/docs/install.md
-- Build trên Windows: https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md
-- Server API: https://github.com/ggml-org/llama.cpp/blob/master/examples/server/README.md
+- Server guide: https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md
+- Build guide: https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md
+- REST API changelog: https://github.com/ggml-org/llama.cpp/issues/9291
+
+Chi tiết llama-server chính (từ skill `llama-knowledge`):
+
+- `--api-key` bật bearer auth cho tất cả endpoint trừ `/health`
+- `/health` luôn public
+- `/v1/models` cần `Authorization: Bearer <key>` khi `--api-key` được đặt
+- Port cố định `8420` là quy ước của Agent-02, không phải mặc định của llama.cpp
